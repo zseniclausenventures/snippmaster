@@ -11,6 +11,7 @@
 
 - Jobber slettes med Slett-knappen i jobbvisningen (to klikk). Bare `jobs/<id>/` slettes; resultatmappen beholdes. Jobber som transkriberer kan ikke slettes.
 - Windows-transkribering sender lyden som numpy-array til faster-whisper (ikke filsti), for å unngå PyAV-API-endringer.
+- Klipp: valgfritt støyfilter (Av/Lett/Kraftig, ffmpeg afftdn) og «Løft svak tale» (dynaudnorm). Filterkjede i `clip_audio_filter`: highpass, støyfilter, volumløft, limiter. Støyfilter brukes aldri før transkribering.
 
 ## Utgivelse
 - Øk `version` i package.json og push til main. GitHub Actions bygger Mac (signert og notarisert) og Windows, og lager release `v<versjon>` automatisk.

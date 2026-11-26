@@ -202,6 +202,13 @@ kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radi
           </select>
         </label>
         <label style="cursor:pointer"><input type="checkbox" id="boostIn" checked style="min-height:18px;width:18px"> Løft svak tale</label>
+        <label title="Fjerner jevn bakgrunnsstøy (sus, vifter, trafikk) i klippene. Kan gjøre stemmen litt metallisk på Kraftig. Originalvideoen endres aldri.">Støyfilter
+          <select id="denoiseIn">
+            <option value="off">Av</option>
+            <option value="light">Lett</option>
+            <option value="strong">Kraftig</option>
+          </select>
+        </label>
         <button class="hot" id="clipBtn">Lag alle klipp</button>
         <span class="muted" id="clipCount"></span>
       </div>
@@ -280,6 +287,22 @@ CT2_MODELS = {
 NB_REPO = "NbAiLab/nb-whisper-large"
 # Løfter svak tale: fjerner rumling, jevner ut nivået dynamisk (opptil +40 dB) og hindrer klipping.
 BOOST_AF = "highpass=f=70,dynaudnorm=f=200:g=11:p=0.9:m=40,alimiter=limit=0.95"
+# Støyfilter for klipp (valgfritt). Brukes aldri før transkribering: Whisper hører best på lyd som ikke er støyfjernet.
+DENOISE_AF = {"light": "afftdn=nr=10:nf=-45:tn=1", "strong": "afftdn=nr=20:nf=-40:tn=1"}
+
+
+def clip_audio_filter(boost, denoise):
+    """Bygger lydfilteret for et klipp. Støy fjernes før volumet løftes, så støyen ikke løftes med."""
+    dn = DENOISE_AF.get(denoise or "off")
+    if not boost and not dn:
+        return ""
+    parts = ["highpass=f=70"]
+    if dn:
+        parts.append(dn)
+    if boost:
+        parts.append("dynaudnorm=f=200:g=11:p=0.9:m=40")
+    parts.append("alimiter=limit=0.95")
+    return ",".join(parts)
 
 
 def write_json(path, data):
@@ -638,16 +661,17 @@ def cmd_transcribe(a):
         raise
 
 
-def do_clip(video, out, start, end, mode, on_progress, boost=False):
+def do_clip(video, out, start, end, mode, on_progress, boost=False, denoise="off"):
     """Lager ett klipp. Returnerer (ok, feilmelding)."""
     length = end - start
     ext = os.path.splitext(out)[1].lower()
     maps = ["-map", "0:v:0?", "-map", "0:a?"]
     extra = ["-movflags", "+faststart"] if ext in (".mp4", ".mov", ".m4v") else []
     acodec = ["-c:a", "libopus", "-b:a", "192k"] if ext == ".webm" else ["-c:a", "aac", "-b:a", "256k"]
-    boosted = ["-af", BOOST_AF] + acodec
+    af = clip_audio_filter(boost, denoise)
+    boosted = ["-af", af] + acodec
     if mode == "copy":
-        if boost:
+        if af:
             variants = [["-c:v", "copy", "-avoid_negative_ts", "make_zero"] + boosted]
         else:
             variants = [["-c", "copy", "-avoid_negative_ts", "make_zero"]]
@@ -661,7 +685,7 @@ def do_clip(video, out, start, end, mode, on_progress, boost=False):
             v = ["-c:v", "prores_ks", "-profile:v", "3"]
         else:
             v = ["-c:v", "libx264", "-crf", "16", "-preset", "veryfast"]
-        variants = [v + boosted] if boost else [v + ["-c:a", "copy"], v + ["-c:a", "aac", "-b:a", "320k"]]
+        variants = [v + boosted] if af else [v + ["-c:a", "copy"], v + ["-c:a", "aac", "-b:a", "320k"]]
     err = ""
     for opts in variants:
         cmd = [FFMPEG, "-y", "-v", "error", "-ss", "%.3f" % start, "-i", video, "-t", "%.3f" % length] + maps + opts + extra + \
@@ -710,7 +734,8 @@ def cmd_batch(a):
             # Ingen skrivetilgang til målmappen fra bakgrunnen: lag klippet i jobbmappen, appen flytter det.
             target = os.path.join(a.fallback, os.path.basename(it["out"]))
             it["work"] = target
-        ok, err = do_clip(a.video, target, float(it["a"]), float(it["b"]), it.get("mode", "exact"), prog, bool(it.get("boost")))
+        ok, err = do_clip(a.video, target, float(it["a"]), float(it["b"]), it.get("mode", "exact"), prog, bool(it.get("boost")),
+                           it.get("denoise", "off"))
         it["state"] = "done" if ok else "error"
         it["progress"] = 1 if ok else it.get("progress", 0)
         if not ok:
@@ -1513,6 +1538,7 @@ async function showTranscript(j) {
   renderClips();
   updateCount();
   $("boostIn").checked = settings.boost !== false;
+  $("denoiseIn").value = ["off", "light", "strong"].includes(settings.denoise) ? settings.denoise : "off";
   watchBatch(j.id);
 }
 const who = (sp) => names[sp] || sp;
@@ -1764,8 +1790,8 @@ async function makeBatch() {
   if (await running("clip")) { $("clipErr").textContent = "Snippmaster lager allerede klipp. Vent til køen er ferdig."; return; }
   const od = j.outDir || J(settings.outDir, stemOf(j.video));
   await D.fs.mkdir(od, { recursive: true }).catch(() => {});
-  const ext = extOf(j.video), stem = stemOf(j.video), mode = $("mode").value, boost = $("boostIn").checked;
-  settings.boost = boost; saveSettings();
+  const ext = extOf(j.video), stem = stemOf(j.video), mode = $("mode").value, boost = $("boostIn").checked, denoise = $("denoiseIn").value;
+  settings.boost = boost; settings.denoise = denoise; saveSettings();
   const taken = new Set();
   const queue = [];
   for (const it of items) {
@@ -1773,7 +1799,7 @@ async function makeBatch() {
     let out = J(od, name + ext);
     for (let n = 2; taken.has(out) || (await D.fs.exists(out)); n++) out = J(od, `${name}_${n}${ext}`);
     taken.add(out);
-    queue.push({ out, a: it.a, b: it.b, title: it.title, mode, boost, state: "queued", progress: 0 });
+    queue.push({ out, a: it.a, b: it.b, title: it.title, mode, boost, denoise, state: "queued", progress: 0 });
   }
   const dir = `${BASE}/jobs/${cur}`;
   const listFile = `${dir}/batch.json`, status = `${dir}/batch-status.json`;
