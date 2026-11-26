@@ -251,6 +251,10 @@ import argparse, glob, json, os, re, shutil, subprocess, sys, time
 IS_WIN = sys.platform == "win32"
 BASE = os.path.join(os.path.expanduser("~"), ".klippverk")
 os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+# Ingen bruksstatistikk fra bibliotekene. Lyd, video og tekst sendes aldri noe sted.
+os.environ["PYANNOTE_METRICS_ENABLED"] = "0"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+os.environ["DO_NOT_TRACK"] = "1"
 if not os.environ.get("HF_TOKEN"):
     try:
         with open(os.path.join(BASE, "hf_token"), encoding="utf-8") as _f:
@@ -1305,7 +1309,7 @@ function renderHelp(section) {
       <li><b>Transkriberingen er treg${WIN ? "" : " første gang"}:</b> ${WIN ? `Oppdater NVIDIA-driveren med ${a("https://www.nvidia.com/en-us/software/nvidia-app/", "NVIDIA-appen")}. Uten NVIDIA-skjermkort går det på prosessoren og tar lengre tid.` : "Første gang lastes og forberedes modellen. Senere går det mye raskere."}</li>
       <li><b>Noe annet:</b> Lag en sak på ${a("https://github.com/zseniclausenventures/snippmaster/issues", "GitHub")} med skjermbilde av feilmeldingen.</li>
     </ul>
-    <p class="muted">Alt skjer på maskinen din. Lyd og video lastes aldri opp. ${a("https://github.com/zseniclausenventures/snippmaster", "Snippmaster på GitHub")} · MIT-lisens</p>
+    <p class="muted">Lyd, video og tekst behandles bare på maskinen din og sendes aldri noe sted. Nettet brukes bare til å laste ned programvare og språkmodeller. Bruksstatistikk i bibliotekene er slått av. ${a("https://github.com/zseniclausenventures/snippmaster", "Snippmaster på GitHub")} · MIT-lisens</p>
   </div>`;
   $("body").querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => $("h-" + b.dataset.h).scrollIntoView({ behavior: "smooth", block: "start" })));
   if (section) setTimeout(() => $("h-" + section)?.scrollIntoView({ block: "start" }), 0);

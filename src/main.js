@@ -32,6 +32,8 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // Stavekontrollen i Chromium laster ned ordbøker fra Google. Den trengs ikke, så den er av.
+      spellcheck: false,
     },
   });
   win.loadFile(path.join(__dirname, "..", "renderer", "index.html"));

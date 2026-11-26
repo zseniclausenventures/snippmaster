@@ -140,7 +140,13 @@ Under **Innstillinger** velger du hvilken mappe videoene hentes fra, og hvor kli
 
 ## Personvern
 
-All lyd og video behandles lokalt. Appen henter bare programvare og modeller fra internett, aldri dine filer. Hugging Face-nøkkelen lagres i en fil i brukermappen din, `.klippverk/hf_token`.
+Lyd, video og tekst behandles bare på maskinen din og sendes aldri noe sted. Appen bruker nettet bare til dette:
+
+- **Ved oppsett:** laster ned Python-verktøyet uv (astral.sh), programbiblioteker (PyPI og PyTorch) og ffmpeg.
+- **Første gang et språk brukes:** laster ned talemodellen fra Hugging Face. Hugging Face ser da hvilken modell som hentes, og fra hvilken konto.
+- **Ved egne språkmodeller:** sjekker hvilket format modellen har på Hugging Face.
+
+Bruksstatistikken i bibliotekene (pyannote og Hugging Face) er slått av. Appen har ingen egen statistikk, reklame eller automatisk innsending av noe slag. Hugging Face-nøkkelen lagres i en fil i brukermappen din, `.klippverk/hf_token`. Koden er åpen, så alt dette kan kontrolleres.
 
 ## Feilsøking
 
