@@ -1,0 +1,54 @@
+{
+  "name": "snippmaster",
+  "productName": "Snippmaster",
+  "version": "0.1.0",
+  "description": "Lokal transkribering med talerskille og videoklipping for Mac og Windows",
+  "author": "OhJoy Ventures AS (Ezerkoesz Ventures)",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "ui": "node scripts/build-ui.mjs",
+    "start": "npm run ui && electron .",
+    "dist:mac": "npm run ui && electron-builder --mac --publish never",
+    "dist:win": "npm run ui && electron-builder --win --publish never",
+    "icon": "node scripts/make-icon.mjs"
+  },
+  "devDependencies": {
+    "electron": "^39.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "no.ohjoy.snippmaster",
+    "productName": "Snippmaster",
+    "copyright": "Copyright (c) 2026 OhJoy Ventures AS",
+    "directories": { "buildResources": "build", "output": "dist" },
+    "files": ["src/**", "renderer/**", "package.json"],
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64"] }],
+      "category": "public.app-category.video",
+      "icon": "build/icon.png",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSDownloadsFolderUsageDescription": "Snippmaster leser videoer du velger fra Downloads.",
+        "NSDesktopFolderUsageDescription": "Snippmaster leser videoer du velger fra Desktop.",
+        "NSDocumentsFolderUsageDescription": "Snippmaster leser videoer du velger fra Documents."
+      }
+    },
+    "dmg": { "artifactName": "Snippmaster-${version}-mac-arm64.${ext}" },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "Snippmaster-Setup-${version}.${ext}"
+    }
+  }
+}

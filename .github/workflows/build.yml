@@ -1,0 +1,70 @@
+name: Bygg Snippmaster
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  mac:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Bygg (signert og notarisert hvis sertifikat finnes)
+        env:
+          CSC_LINK: ${{ secrets.MAC_CERT_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -n "$CSC_LINK" ]; then
+            npm run dist:mac -- -c.mac.notarize=true
+          else
+            echo "::warning::Ingen Apple-sertifikat i secrets. Bygger usignert."
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            npm run dist:mac -- -c.mac.notarize=false -c.mac.identity=null
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snippmaster-mac
+          path: dist/*.dmg
+
+  win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Bygg installasjonsfil
+        run: npm run dist:win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snippmaster-win
+          path: dist/*.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [mac, win]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          draft: false
+          prerelease: true

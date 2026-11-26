@@ -1,0 +1,1931 @@
+<!DOCTYPE html>
+<html lang="nb">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Snippmaster</title>
+<script type="application/json" id="claude-artifacts-manifest">{"permissions": ["full-access", "notifications"]}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/*
+VOICE: et rolig redigeringsbord, presist og raskt å lese
+IDEA: et klippebord der transkripsjonen er tidslinjen
+PICTURE: transkripsjonen selv, med tidskoder i marg og en markert klippesone
+COLOUR and TYPE: grafitt og papir, én signalrød aksent for inn/ut; IBM Plex Sans + Plex Mono for tidskoder
+LAYOUT: bibliotek til venstre, transkripsjon i midten, klippelinje nederst
+*/
+:root{color-scheme:light dark;--bg:light-dark(#f5f4f0,#141518);--panel:light-dark(#ffffff,#1c1d21);--ink:light-dark(#16171a,#ecebe6);--mute:light-dark(#6c6b66,#9a9992);--line:light-dark(#e2e0d9,#2c2d33);--hot:#ff4d2e;--sel:light-dark(#ffe3dc,#3a1f19);--ok:light-dark(#2f7d55,#6fcf97)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;overflow:hidden}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.drag{position:fixed;top:0;left:0;right:0;height:34px;app-region:drag;-webkit-app-region:drag;z-index:5}
+.shell{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh}
+aside{border-right:1px solid var(--line);padding:44px 14px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
+aside h1{font:600 20px/1.1 "IBM Plex Sans",sans-serif;margin:0 4px 6px}
+.lib{display:flex;flex-direction:column;gap:4px}
+.item{all:unset;display:block;padding:9px 10px;border-radius:10px;cursor:pointer;app-region:no-drag;-webkit-app-region:no-drag}
+.item:hover{background:var(--panel)}
+.item.on{background:var(--panel);box-shadow:inset 3px 0 0 var(--hot)}
+.item b{display:block;font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item span{font-size:12px;color:var(--mute)}
+main{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+.top{padding:40px 24px 10px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.top h2{margin:0;font:600 18px/1.2 "IBM Plex Sans",sans-serif;flex:1 1 160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.body{flex:1;overflow:auto;padding:16px 24px}
+button,select,input{font:inherit;color:inherit;app-region:no-drag;-webkit-app-region:no-drag}
+button{cursor:pointer;border-radius:10px;min-height:40px;padding:6px 14px;border:1px solid var(--line);background:var(--panel);font-weight:500}
+button.pri{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.hot{background:var(--hot);color:#fff;border-color:var(--hot)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--hot);outline-offset:2px}
+input,select{min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:6px 10px;font-size:15px}
+.drop{border:2px dashed var(--line);border-radius:18px;padding:48px 24px;text-align:center;display:grid;gap:14px;place-items:center;max-width:720px;margin:24px auto}
+.drop.over{border-color:var(--hot);background:var(--sel)}
+.drop .big{font:600 26px/1.15 "IBM Plex Sans",sans-serif;margin:0}
+.drop p{margin:0;color:var(--mute)}
+.form{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
+.form input[type=text]{flex:1 1 360px}
+.prog{max-width:620px;margin:40px auto;display:grid;gap:10px}
+.bar{height:10px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--hot);width:0;transition:width .4s}
+.stage{font-weight:600}
+.muted{color:var(--mute);font-size:13px}
+.err{color:var(--hot);font-size:14px;white-space:pre-wrap}
+pre.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;font:12px/1.45 "IBM Plex Mono",monospace;max-height:260px;overflow:auto;white-space:pre-wrap;user-select:text}
+.speakers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.spk{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px}
+.spk i{width:10px;height:10px;border-radius:50%;flex:none}
+.spk input{min-height:30px;border:0;background:transparent;width:120px;padding:2px 4px;font-size:14px}
+.lines{display:flex;flex-direction:column}
+.ln{display:grid;grid-template-columns:86px 110px minmax(0,1fr);gap:12px;padding:5px 8px;border-radius:8px;cursor:pointer;user-select:text}
+.ln:hover{background:var(--panel)}
+.ln.in{background:var(--sel)}
+.ln.edge{box-shadow:inset 3px 0 0 var(--hot)}
+.ln .ts{color:var(--mute);font-size:13px;padding-top:2px;white-space:nowrap}
+.ln .who{font-weight:600;font-size:13px;padding-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.clipbar{border-top:1px solid var(--line);padding:10px 24px;display:flex;flex-direction:column;gap:6px;background:var(--panel);max-height:36vh;overflow:auto}
+.clipbar .clips{max-height:96px;overflow:auto}
+.cliprow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.listlabel{font-size:13px;color:var(--mute)}
+#clipList{font:14px/1.5 "IBM Plex Mono",monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical;min-height:52px;app-region:no-drag;-webkit-app-region:no-drag}
+.clip .bar{flex:0 0 90px;height:6px}
+.clipbar label{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px}
+.clipbar input.t{width:108px;font-family:"IBM Plex Mono",monospace}
+.clips{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.clip{display:flex;gap:8px;align-items:center;font-size:13px}
+.clip .mono{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gate{max-width:640px;margin:80px auto;display:grid;gap:14px;padding:0 24px}
+.gate h2{font:600 26px/1.15 "IBM Plex Sans",sans-serif;margin:0}
+.steps{display:grid;gap:10px}
+.step{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.step .dot{width:12px;height:12px;border-radius:50%;background:var(--line);margin-top:6px;flex:none}
+.step.ok .dot{background:var(--ok)}
+.step.bad .dot{background:var(--hot)}
+.step div{flex:1}
+.step b{display:block}
+a{color:var(--hot)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;z-index:20;app-region:no-drag;-webkit-app-region:no-drag}
+.sheet{background:var(--bg);border:1px solid var(--line);border-radius:16px;width:min(760px,92vw);max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.sheet header{padding:16px 18px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+.sheet header b{flex:1 1 200px;font-size:16px}
+.crumb{font:13px/1.4 "IBM Plex Mono",monospace;color:var(--mute);padding:8px 18px;overflow-wrap:anywhere}
+.quick{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 8px}
+.quick button{min-height:32px;padding:4px 10px;font-size:13px}
+.flist{overflow:auto;padding:4px 10px 10px;flex:1}
+.fi{all:unset;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;cursor:pointer}
+.fi:hover,.fi:focus-visible{background:var(--panel)}
+.fi .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fi .m{color:var(--mute);font-size:12px;white-space:nowrap}
+.sheet footer{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.vids{max-width:720px;margin:0 auto 24px}
+.vids h3{font-size:14px;margin:0 0 8px;color:var(--mute);font-weight:500}
+.setrow{display:grid;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.setrow .p{font:13px/1.4 "IBM Plex Mono",monospace;overflow-wrap:anywhere}
+.setrow .btns{display:flex;gap:8px;flex-wrap:wrap}
+.step.act .dot{background:var(--hot);animation:pulse 1.4s ease-in-out infinite}
+.prog .steps{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));display:grid;gap:8px}
+.prog .step{padding:10px 12px}
+.prog .step b{font-size:14px}
+.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);margin-right:8px;vertical-align:middle}
+.live.on{background:var(--ok);animation:pulse 1.4s ease-in-out infinite}
+.bar.busy i{background:repeating-linear-gradient(90deg,var(--hot) 0 24px,color-mix(in srgb,var(--hot) 45%,transparent) 24px 48px);background-size:48px 100%;animation:slide 1s linear infinite}
+@keyframes pulse{50%{opacity:.35}}
+@keyframes slide{to{background-position:48px 0}}
+@media(prefers-reduced-motion:reduce){.step.act .dot,.live.on,.bar.busy i{animation:none}}
+.body.split{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:20px;overflow:hidden;padding:12px 24px}
+.pcol{display:flex;flex-direction:column;gap:10px;min-height:0;overflow:auto;padding-bottom:8px}
+.tcol{overflow:auto;min-height:0;padding-right:4px}
+.vbox{position:relative;background:#000;border-radius:12px;overflow:hidden;height:min(30vh,calc((100vw - 330px) * 0.3));min-height:150px;flex:none}
+.vbox video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+.vmsg{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:10px;color:#d8d7d0;font-size:14px;text-align:center;padding:16px;background:#0c0d0f}
+.vmsg .bar{width:min(320px,80%)}
+.ctrls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.ctrls button{min-height:36px;padding:4px 10px;font-size:13px}
+.tc{font:13px "IBM Plex Mono",monospace;margin-left:auto;white-space:nowrap}
+.tl{position:relative;height:50px;border-radius:8px;background:var(--panel);border:1px solid var(--line);cursor:pointer;touch-action:none;overflow:hidden;flex:none}
+.tl .sp{position:absolute;top:6px;height:10px}
+.tl .rg{position:absolute;top:20px;bottom:6px;background:color-mix(in srgb,var(--hot) 30%,transparent);border-left:2px solid var(--hot);border-right:2px solid var(--hot)}
+.tl .sel{position:absolute;top:18px;bottom:2px;background:color-mix(in srgb,var(--ok) 25%,transparent);border-left:2px solid var(--ok);border-right:2px solid var(--ok)}
+.tl .ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--ink);pointer-events:none}
+.tl .hov{position:absolute;bottom:3px;transform:translateX(-50%);font:11px "IBM Plex Mono",monospace;background:var(--ink);color:var(--bg);padding:0 5px;border-radius:4px;pointer-events:none;white-space:nowrap}
+.ticks{display:flex;justify-content:space-between;font:11px "IBM Plex Mono",monospace;color:var(--mute);margin-top:-6px}
+.ln.now{background:color-mix(in srgb,var(--ok) 20%,transparent)}
+.keys{font-size:12px;color:var(--mute);line-height:1.9}
+kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin:0 1px}
+@media(max-width:900px){.body.split{grid-template-columns:1fr;overflow:auto}.pcol,.tcol{overflow:visible}}
+[hidden]{display:none!important}
+@media(max-width:760px){.shell{grid-template-columns:1fr}aside{display:none}.ln{grid-template-columns:70px minmax(0,1fr)}.ln .who{grid-column:2}.ln .tx{grid-column:2}}
+@media(prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+</head>
+<body>
+<div class="drag"></div>
+
+<section id="gate" class="gate" hidden>
+  <h2>Snippmaster</h2>
+  <p id="gateText" class="muted">Laster ...</p>
+  <div><button id="gateBtn" class="pri" hidden></button></div>
+</section>
+
+<section id="setup" class="gate" hidden>
+  <h2 id="setupTitle">Gjør Macen klar</h2>
+  <p class="muted" id="setupIntro">Snippmaster kjører alt lokalt på Macen: ffmpeg, Whisper-modeller for Apple Silicon og pyannote for å skille talere. Installasjonen tar noen minutter første gang.</p>
+  <div class="steps">
+    <div class="step" id="stBrew"><span class="dot"></span><div><b id="pmName">Verktøy</b><span class="muted">uv (Python) og ffmpeg lastes ned automatisk til ~/.klippverk. Krever ikke administratortilgang.</span></div></div>
+    <div class="step" id="stPkg"><span class="dot"></span><div><b>ffmpeg, Python og modellbibliotek</b><span class="muted" id="pkgText">Installeres i ~/.klippverk, rører ikke resten av systemet.</span></div></div>
+    <div class="step" id="stHf"><span class="dot"></span><div><b>Tilgang til talermodellen</b><span class="muted" id="hfText">1) Lag en gratis konto på Hugging Face og trykk «Agree» på <a href="https://huggingface.co/pyannote/speaker-diarization-community-1">pyannote/speaker-diarization-community-1</a>. 2) Lag en lesenøkkel under <a href="https://huggingface.co/settings/tokens">Access Tokens</a> og lim den inn her.</span>
+      <div class="form" style="justify-content:flex-start;margin-top:8px"><input type="password" id="hfIn" placeholder="hf_..." autocomplete="off" style="flex:1 1 240px"><button id="hfSave">Lagre nøkkel</button></div></div></div>
+  </div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button id="installBtn" class="pri">Installer</button>
+    <button id="checkBtn">Sjekk igjen</button>
+    <button id="skipBtn">Fortsett uten talere</button>
+  </div>
+  <div class="err" id="setupErr"></div>
+  <pre class="log" id="setupLog" hidden></pre>
+</section>
+
+<div class="shell" id="app" hidden>
+  <aside>
+    <h1>Snippmaster</h1>
+    <button id="newBtn" class="pri">Ny video</button>
+    <div class="lib" id="lib"></div>
+    <button id="settingsBtn" style="margin-top:auto">Innstillinger</button>
+  </aside>
+  <main>
+    <div class="top">
+      <h2 id="title">Ny video</h2>
+      <input type="search" id="search" placeholder="Søk i teksten" hidden style="width:170px">
+      <button id="copyBtn" hidden>Kopier tekst</button>
+      <button id="finderBtn" hidden>Vis original</button>
+      <button id="outBtn" hidden>Resultatmappe</button>
+    </div>
+    <div class="body" id="body"></div>
+    <div class="clipbar" id="clipbar" hidden>
+      <div class="cliprow">
+        <label>Fra <input class="t" id="tFrom" placeholder="1:24"></label>
+        <label>Til <input class="t" id="tTo" placeholder="1:52"></label>
+        <button id="addBtn">Legg til i listen</button>
+        <span class="muted">Klikk en linje for start, Shift-klikk for slutt.</span>
+      </div>
+      <label class="listlabel" for="clipList">Klippliste, ett klipp per linje. Tittel etter tidene er valgfritt.</label>
+      <textarea id="clipList" rows="2" spellcheck="false" placeholder="1:24-1:52 Innledning&#10;3:10-3:45&#10;1:02:03-1:04:30 Avslutning"></textarea>
+      <div class="cliprow">
+        <label>Kvalitet
+          <select id="mode">
+            <option value="exact">Eksakt kutt (re-enkoder, visuelt lik)</option>
+            <option value="copy">Tapsfri kopi (kan starte litt tidligere)</option>
+          </select>
+        </label>
+        <label style="cursor:pointer"><input type="checkbox" id="boostIn" checked style="min-height:18px;width:18px"> Løft svak tale</label>
+        <button class="hot" id="clipBtn">Lag alle klipp</button>
+        <span class="muted" id="clipCount"></span>
+      </div>
+      <div class="err" id="clipErr"></div>
+      <div class="clips" id="clips"></div>
+    </div>
+  </main>
+</div>
+
+<div class="modal" id="browser" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="brTitle">
+    <header><b id="brTitle">Velg video</b><button id="brUp">Opp et nivå</button></header>
+    <div class="crumb mono" id="brPath"></div>
+    <div class="quick" id="brQuick"></div>
+    <div class="flist" id="brList"></div>
+    <div class="err" id="brErr" style="padding:0 18px"></div>
+    <footer><button id="brCancel">Avbryt</button><button class="pri" id="brPick" hidden>Velg denne mappen</button></footer>
+  </div>
+</div>
+
+<script type="text/plain" id="workerPy">
+import argparse, glob, json, os, re, shutil, subprocess, sys, time
+
+IS_WIN = sys.platform == "win32"
+BASE = os.path.join(os.path.expanduser("~"), ".klippverk")
+if IS_WIN:
+    _links = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Links")
+    os.environ["PATH"] = _links + os.pathsep + os.environ.get("PATH", "")
+    _dirs = glob.glob(os.path.join(sys.prefix, "Lib", "site-packages", "nvidia", "*", "bin"))
+    _dirs += glob.glob(os.path.join(sys.prefix, "Lib", "site-packages", "torch", "lib"))
+    for _d in _dirs:
+        try:
+            os.add_dll_directory(_d)
+        except Exception:
+            pass
+    os.environ["PATH"] = os.pathsep.join(_dirs + [os.environ["PATH"]])
+
+os.environ["PATH"] = os.path.join(BASE, "bin") + os.pathsep + "/opt/homebrew/bin" + os.pathsep + os.environ.get("PATH", "")
+
+
+def _ff_tools():
+    """ffmpeg/ffprobe fra systemet, ellers fra static-ffmpeg (lastes ned automatisk første gang)."""
+    ff, fp = shutil.which("ffmpeg"), shutil.which("ffprobe")
+    if ff and fp:
+        return ff, fp
+    try:
+        from static_ffmpeg import run as _sfr
+        return _sfr.get_or_fetch_platform_executables_else_raise()
+    except Exception as e:
+        print("Fant ikke ffmpeg:", e, file=sys.stderr)
+        return ff or "ffmpeg", fp or "ffprobe"
+
+
+FFMPEG, FFPROBE = _ff_tools()
+DOPPLER = shutil.which("doppler") or "/opt/homebrew/bin/doppler"
+DIAR_MODEL = "pyannote/speaker-diarization-community-1"
+MODELS = {
+    "no": ["aalst/nb-whisper-large-mlx", "Tibber-se/nb-whisper-large-mlx", "mlx-community/whisper-large-v3-mlx"],
+    "en": ["mlx-community/whisper-large-v3-turbo", "mlx-community/whisper-large-v3-mlx"],
+    "hu": ["mlx-community/whisper-large-v3-mlx", "mlx-community/whisper-large-v3-turbo"],
+}
+# Windows/Linux: faster-whisper (CTranslate2) på skjermkortet
+CT2_MODELS = {
+    "no": ["nb-whisper-large", "large-v3"],
+    "en": ["large-v3-turbo", "large-v3"],
+    "hu": ["large-v3", "large-v3-turbo"],
+}
+NB_REPO = "NbAiLab/nb-whisper-large"
+# Løfter svak tale: fjerner rumling, jevner ut nivået dynamisk (opptil +40 dB) og hindrer klipping.
+BOOST_AF = "highpass=f=70,dynaudnorm=f=200:g=11:p=0.9:m=40,alimiter=limit=0.95"
+
+
+def write_json(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+class Status:
+    def __init__(self, path):
+        self.path = path
+        self.data = {}
+        try:
+            with open(path, encoding="utf-8") as f:
+                self.data = json.load(f)
+        except Exception:
+            pass
+
+    def set(self, **kw):
+        if "stage" in kw and kw["stage"] != self.data.get("stage"):
+            kw["stage_started"] = time.time()
+            self.data.setdefault("stages", {})[kw["stage"]] = kw["stage_started"]
+        self.data.update(kw)
+        self.data["updated"] = time.time()
+        write_json(self.path, self.data)
+
+
+def hf_token():
+    tok = os.environ.get("HF_TOKEN")
+    if tok:
+        return tok
+    try:
+        with open(os.path.join(BASE, "hf_token"), encoding="utf-8") as f:
+            tok = f.read().strip()
+        if tok:
+            return tok
+    except Exception:
+        pass
+    try:
+        r = subprocess.run([DOPPLER, "secrets", "get", "HF_TOKEN", "--plain", "--project", "cos", "--config", "prd"],
+                           capture_output=True, text=True, timeout=30)
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
+        print("Doppler:", r.stderr.strip(), file=sys.stderr)
+    except Exception as e:
+        print("Doppler feilet:", e, file=sys.stderr)
+    return None
+
+
+def load_pipeline(token):
+    from pyannote.audio import Pipeline
+    try:
+        return Pipeline.from_pretrained(DIAR_MODEL, token=token)
+    except TypeError:
+        return Pipeline.from_pretrained(DIAR_MODEL, use_auth_token=token)
+
+
+def probe_duration(path):
+    r = subprocess.run([FFPROBE, "-v", "error", "-show_entries", "format=duration", "-of", "json", path],
+                       capture_output=True, text=True)
+    try:
+        return float(json.loads(r.stdout)["format"]["duration"])
+    except Exception:
+        return 0.0
+
+
+def cmd_check(a):
+    out = {"ok": False, "hf_ok": False, "error": None, "hf_error": None}
+    try:
+        if IS_WIN:
+            import ctranslate2
+            import faster_whisper  # noqa: F401
+            out["cuda"] = ctranslate2.get_cuda_device_count() > 0
+        else:
+            import mlx_whisper  # noqa: F401
+        import pyannote.audio  # noqa: F401
+        out["ok"] = bool(shutil.which(FFMPEG) or os.path.exists(FFMPEG))
+        if not out["ok"]:
+            out["error"] = "ffmpeg mangler"
+    except Exception as e:
+        out["error"] = "Python-pakker mangler: %s" % e
+    token = hf_token()
+    if not token:
+        out["hf_error"] = "Mangler Hugging Face-nøkkel. Lim den inn under."
+    else:
+        try:
+            p = load_pipeline(token)
+            out["hf_ok"] = p is not None
+            if p is None:
+                out["hf_error"] = "Modellen er låst. Godta vilkårene på Hugging Face."
+        except Exception as e:
+            out["hf_error"] = str(e)[:400]
+    write_json(a.out, out)
+    print(json.dumps(out, ensure_ascii=False))
+
+
+class ProgressOut:
+    """Fanger Whisper sin utskrift og regner ut fremdrift."""
+    pat = re.compile(r"\[(?:(\d+):)?(\d+):(\d+\.\d+) -->")
+
+    def __init__(self, real, status, duration):
+        self.real, self.status, self.duration, self.last = real, status, duration, 0
+
+    def write(self, s):
+        self.real.write(s)
+        m = self.pat.search(s)
+        if m and self.duration:
+            t = int(m.group(1) or 0) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+            now = time.time()
+            if now - self.last > 1:
+                self.last = now
+                self.status.set(progress=min(0.99, t / self.duration), at=t)
+        return len(s)
+
+    def flush(self):
+        self.real.flush()
+
+
+def fmt_ts(t, srt=False):
+    t = max(0.0, t)
+    h, rem = divmod(t, 3600)
+    m, s = divmod(rem, 60)
+    if srt:
+        return "%02d:%02d:%02d,%03d" % (h, m, int(s), int((s - int(s)) * 1000))
+    if h:
+        return "%d:%02d:%02d" % (h, m, int(s))
+    return "%02d:%02d" % (m, int(s))
+
+
+def build_lines(words, max_len=4.0, soft_len=3.0, gap=1.0):
+    lines, cur = [], None
+    for w in words:
+        text = w["t"]
+        if not text.strip():
+            continue
+        brk = cur is None
+        if cur:
+            brk = (w["sp"] != cur["sp"] or w["s"] - cur["e"] > gap or w["e"] - cur["s"] > max_len
+                   or (cur["e"] - cur["s"] >= soft_len and cur["t"].rstrip()[-1:] in ".?!,;:"))
+        if brk:
+            if cur:
+                lines.append(cur)
+            cur = {"s": w["s"], "e": w["e"], "sp": w["sp"], "t": text.strip()}
+        else:
+            cur["e"] = w["e"]
+            cur["t"] += text if text.startswith(" ") else " " + text
+    if cur:
+        lines.append(cur)
+    for ln in lines:
+        ln["t"] = re.sub(r"\s+", " ", ln["t"]).strip()
+        ln["s"], ln["e"] = round(ln["s"], 2), round(ln["e"], 2)
+    return lines
+
+
+def transcribe_mlx(wav, lang, st, duration):
+    st.set(stage="transcribe", progress=0)
+    import mlx_whisper
+    res, used, last = None, None, None
+    real = sys.stdout
+    for model in MODELS.get(lang, MODELS["en"]):
+        try:
+            print("Bruker modell:", model, flush=True)
+            sys.stdout = ProgressOut(real, st, duration)
+            res = mlx_whisper.transcribe(wav, path_or_hf_repo=model, language=lang, word_timestamps=True,
+                                         verbose=True, condition_on_previous_text=False)
+            used = model
+            break
+        except Exception as e:
+            last = e
+            print("Modell feilet:", model, e, file=sys.stderr, flush=True)
+        finally:
+            sys.stdout = real
+    if res is None:
+        raise RuntimeError("Ingen Whisper-modell virket: %s" % last)
+    words = []
+    for seg in res.get("segments", []):
+        ws = seg.get("words") or []
+        if ws:
+            for w in ws:
+                words.append({"s": float(w["start"]), "e": float(w["end"]), "t": w["word"], "sp": None})
+        else:
+            words.append({"s": float(seg["start"]), "e": float(seg["end"]), "t": " " + seg["text"], "sp": None})
+    return words, used
+
+
+def nb_ct2_dir(st):
+    """Konverterer NB-Whisper til CTranslate2-format én gang."""
+    out = os.path.join(BASE, "models", "nb-whisper-large-ct2")
+    if os.path.exists(os.path.join(out, "model.bin")):
+        return out
+    st.set(stage="prepare", progress=None)
+    print("Konverterer NB-Whisper til faster-whisper-format (én gang) ...", flush=True)
+    from ctranslate2.converters import TransformersConverter
+    tmp = out + ".tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    try:
+        conv = TransformersConverter(NB_REPO, copy_files=["tokenizer.json", "preprocessor_config.json"], load_as_float16=True)
+        conv.convert(tmp, quantization="float16", force=True)
+    except Exception as e:
+        print("Kopiering av tokenizer feilet, prøver uten:", e, file=sys.stderr, flush=True)
+        shutil.rmtree(tmp, ignore_errors=True)
+        TransformersConverter(NB_REPO, load_as_float16=True).convert(tmp, quantization="float16", force=True)
+    shutil.rmtree(out, ignore_errors=True)
+    os.replace(tmp, out)
+    return out
+
+
+def transcribe_ct2(wav, lang, st, duration):
+    import ctranslate2
+    from faster_whisper import WhisperModel
+    cuda = ctranslate2.get_cuda_device_count() > 0
+    devices = ([("cuda", "float16")] if cuda else []) + [("cpu", "int8")]
+    last = None
+    for name in CT2_MODELS.get(lang, CT2_MODELS["en"]):
+        for dev, ct in devices:
+            try:
+                path = nb_ct2_dir(st) if name == "nb-whisper-large" else name
+                print("Bruker modell:", name, "på", dev, flush=True)
+                st.set(stage="transcribe", progress=0, device=dev)
+                model = WhisperModel(path, device=dev, compute_type=ct)
+                segs, _info = model.transcribe(wav, language=lang, word_timestamps=True, beam_size=5,
+                                               condition_on_previous_text=False, vad_filter=True)
+                words, tick = [], 0
+                for seg in segs:
+                    if seg.words:
+                        for w in seg.words:
+                            words.append({"s": float(w.start), "e": float(w.end), "t": w.word, "sp": None})
+                    else:
+                        words.append({"s": float(seg.start), "e": float(seg.end), "t": " " + seg.text, "sp": None})
+                    print("[%s] %s" % (fmt_ts(seg.start), seg.text.strip()), flush=True)
+                    if time.time() - tick > 1 and duration:
+                        tick = time.time()
+                        st.set(progress=min(0.99, seg.end / duration), at=seg.end)
+                return words, "%s (%s)" % (name, dev)
+            except Exception as e:
+                last = e
+                print("Feilet:", name, "på", dev, "-", e, file=sys.stderr, flush=True)
+    raise RuntimeError("Ingen Whisper-modell virket: %s" % last)
+
+
+def cmd_transcribe(a):
+    job = a.job
+    st = Status(os.path.join(job, "status.json"))
+    st.set(stage="audio", progress=0, error=None, done=False, started=time.time())
+    try:
+        wav = os.path.join(job, "audio.wav")
+        duration = probe_duration(a.video)
+        st.set(duration=duration)
+        # Lyden jevnes ut før Whisper hører den, så svak tale blir tydeligere for modellen.
+        subprocess.run([FFMPEG, "-y", "-v", "error", "-i", a.video, "-vn", "-af", BOOST_AF, "-ac", "1", "-ar", "16000",
+                        "-c:a", "pcm_s16le", wav], check=True)
+
+        if IS_WIN:
+            words, used = transcribe_ct2(wav, a.lang, st, duration)
+        else:
+            words, used = transcribe_mlx(wav, a.lang, st, duration)
+
+        turns, diar_error = [], None
+        if not a.no_diarize:
+            st.set(stage="diarize", progress=None)
+            try:
+                import soundfile as sf
+                import torch
+                pipe = load_pipeline(hf_token())
+                if pipe is None:
+                    raise RuntimeError("Talermodellen er låst. Godta vilkårene på Hugging Face.")
+                data, sr = sf.read(wav, dtype="float32")
+                wf = torch.from_numpy(data).unsqueeze(0)
+                kw = {"num_speakers": a.speakers} if a.speakers else {}
+                spans = {"segmentation": (0.0, 0.3), "embeddings": (0.3, 0.95)}
+                tick = [0.0]
+
+                def hook(step_name, step_artifact=None, file=None, total=None, completed=None, **_):
+                    lo, hi = spans.get(step_name, (None, None))
+                    if lo is None:
+                        if step_name in ("speaker_counting",):
+                            st.set(progress=0.3, substep=step_name)
+                        elif step_name in ("discrete_diarization",):
+                            st.set(progress=0.97, substep=step_name)
+                        return
+                    if total and completed is not None and time.time() - tick[0] > 1:
+                        tick[0] = time.time()
+                        st.set(progress=lo + (hi - lo) * min(1.0, completed / total), substep=step_name)
+
+                devices = ["cuda"] if torch.cuda.is_available() else []
+                if not devices and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+                    devices = ["mps"]
+                devices.append("cpu")
+                out, last = None, None
+                for dev in devices:
+                    try:
+                        pipe.to(torch.device(dev))
+                        st.set(progress=0, device_diar=dev)
+                        print("Skiller talere på", dev, flush=True)
+                        try:
+                            out = pipe({"waveform": wf, "sample_rate": sr}, hook=hook, **kw)
+                        except TypeError:
+                            out = pipe({"waveform": wf, "sample_rate": sr}, **kw)
+                        break
+                    except Exception as e:
+                        last = e
+                        print("Talerskille feilet på", dev, "-", e, file=sys.stderr, flush=True)
+                if out is None:
+                    raise last
+                ann = getattr(out, "exclusive_speaker_diarization", None) or getattr(out, "speaker_diarization", None) or out
+                for seg, _, lab in ann.itertracks(yield_label=True):
+                    turns.append((float(seg.start), float(seg.end), str(lab)))
+                turns.sort()
+            except Exception as e:
+                diar_error = str(e)[:400]
+                print("Talerskille feilet:", e, file=sys.stderr, flush=True)
+
+        st.set(stage="write", progress=None)
+        order = {}
+        for _, _, lab in turns:
+            order.setdefault(lab, "Taler %d" % (len(order) + 1))
+        prev = order[turns[0][2]] if turns else "Taler 1"
+        ti = 0
+        for w in words:
+            mid = (w["s"] + w["e"]) / 2
+            while ti < len(turns) and turns[ti][1] < mid - 0.5:
+                ti += 1
+            best, dist = None, 1.0
+            for j in range(max(0, ti - 2), min(len(turns), ti + 4)):
+                s, e, lab = turns[j]
+                d = 0 if s <= mid <= e else min(abs(mid - s), abs(mid - e))
+                if d < dist:
+                    best, dist = order[lab], d
+            w["sp"] = best or prev
+            prev = w["sp"]
+
+        lines = build_lines(words)
+        speakers = sorted({ln["sp"] for ln in lines}, key=lambda x: int(x.split()[-1]))
+        data = {"video": a.video, "lang": a.lang, "model": used, "duration": duration, "speakers": speakers,
+                "lines": lines, "diarization_error": diar_error}
+        write_json(os.path.join(job, "transcript.json"), data)
+
+        base = os.path.join(job, "transkripsjon")
+        try:
+            with open(base + ".txt", "w", encoding="utf-8") as f:
+                for ln in lines:
+                    f.write("[%s] %s: %s\n" % (fmt_ts(ln["s"]), ln["sp"], ln["t"]))
+            with open(base + ".srt", "w", encoding="utf-8") as f:
+                for i, ln in enumerate(lines, 1):
+                    f.write("%d\n%s --> %s\n%s: %s\n\n" % (i, fmt_ts(ln["s"], True), fmt_ts(ln["e"], True), ln["sp"], ln["t"]))
+        except Exception as e:
+            print("Kunne ikke lagre tekstfiler:", e, file=sys.stderr)
+        try:
+            os.remove(wav)
+        except Exception:
+            pass
+        st.set(stage="done", progress=1, done=True, finished=time.time())
+    except Exception as e:
+        st.set(stage="error", error=str(e)[:600])
+        raise
+
+
+def do_clip(video, out, start, end, mode, on_progress, boost=False):
+    """Lager ett klipp. Returnerer (ok, feilmelding)."""
+    length = end - start
+    ext = os.path.splitext(out)[1].lower()
+    maps = ["-map", "0:v:0?", "-map", "0:a?"]
+    extra = ["-movflags", "+faststart"] if ext in (".mp4", ".mov", ".m4v") else []
+    acodec = ["-c:a", "libopus", "-b:a", "192k"] if ext == ".webm" else ["-c:a", "aac", "-b:a", "256k"]
+    boosted = ["-af", BOOST_AF] + acodec
+    if mode == "copy":
+        if boost:
+            variants = [["-c:v", "copy", "-avoid_negative_ts", "make_zero"] + boosted]
+        else:
+            variants = [["-c", "copy", "-avoid_negative_ts", "make_zero"]]
+    else:
+        r = subprocess.run([FFPROBE, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=codec_name",
+                            "-of", "csv=p=0", video], capture_output=True, text=True)
+        codec = r.stdout.strip()
+        if codec == "hevc":
+            v = ["-c:v", "libx265", "-crf", "18", "-preset", "veryfast"] + (["-tag:v", "hvc1"] if ext in (".mp4", ".mov", ".m4v") else [])
+        elif codec == "prores":
+            v = ["-c:v", "prores_ks", "-profile:v", "3"]
+        else:
+            v = ["-c:v", "libx264", "-crf", "16", "-preset", "veryfast"]
+        variants = [v + boosted] if boost else [v + ["-c:a", "copy"], v + ["-c:a", "aac", "-b:a", "320k"]]
+    err = ""
+    for opts in variants:
+        cmd = [FFMPEG, "-y", "-v", "error", "-ss", "%.3f" % start, "-i", video, "-t", "%.3f" % length] + maps + opts + extra + \
+              ["-progress", "pipe:1", "-nostats", out]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+        last = 0
+        for line in p.stdout:
+            if line.startswith("out_time_us=") and length > 0:
+                try:
+                    t = int(line.split("=")[1]) / 1e6
+                except ValueError:
+                    continue
+                if time.time() - last > 0.5:
+                    last = time.time()
+                    on_progress(min(0.99, t / length))
+        err = p.stderr.read()
+        if p.wait() == 0:
+            return True, ""
+    return False, err.strip()[-600:] or "ffmpeg feilet"
+
+
+def cmd_batch(a):
+    """Lager alle klippene i listen etter hverandre. Fortsetter selv om ett feiler."""
+    with open(a.list, encoding="utf-8") as f:
+        items = json.load(f)
+    st = Status(a.status)
+    st.set(state="running", items=items, current=0, error=None)
+    os.makedirs(a.fallback, exist_ok=True)
+    for i, it in enumerate(items):
+        if it.get("state") == "done":
+            continue
+        it["state"], it["progress"] = "running", 0
+        st.set(items=items, current=i)
+
+        def prog(x, it=it):
+            it["progress"] = x
+            st.set(items=items, current=i)
+
+        target = it["out"]
+        try:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target + ".tmp-test", "w") as tf:
+                tf.write("")
+            os.remove(target + ".tmp-test")
+        except Exception:
+            # Ingen skrivetilgang til målmappen fra bakgrunnen: lag klippet i jobbmappen, appen flytter det.
+            target = os.path.join(a.fallback, os.path.basename(it["out"]))
+            it["work"] = target
+        ok, err = do_clip(a.video, target, float(it["a"]), float(it["b"]), it.get("mode", "exact"), prog, bool(it.get("boost")))
+        it["state"] = "done" if ok else "error"
+        it["progress"] = 1 if ok else it.get("progress", 0)
+        if not ok:
+            it["error"] = err
+        st.set(items=items, current=i)
+    st.set(state="done", items=items)
+
+
+def cmd_proxy(a):
+    """Lager en lett forhåndsvisning (maks 640 px, H.264) delt i korte biter som appen kan spille av."""
+    os.makedirs(a.dir, exist_ok=True)
+    st = Status(os.path.join(a.dir, "proxy.json"))
+    st.set(state="running", progress=0, error=None, segs=None)
+    for f in glob.glob(os.path.join(a.dir, "seg_*.mp4")):
+        os.remove(f)
+    duration = probe_duration(a.video)
+    if sys.platform == "darwin":
+        encs = [["-c:v", "h264_videotoolbox", "-b:v", "900k"], ["-c:v", "libx264", "-preset", "veryfast", "-crf", "30"]]
+    elif IS_WIN:
+        encs = [["-c:v", "h264_nvenc", "-b:v", "900k"], ["-c:v", "libx264", "-preset", "veryfast", "-crf", "30"]]
+    else:
+        encs = [["-c:v", "libx264", "-preset", "veryfast", "-crf", "30"]]
+    scale = "scale='trunc(min(1,640/max(iw,ih))*iw/2)*2':'trunc(min(1,640/max(iw,ih))*ih/2)*2',format=yuv420p"
+    err = ""
+    for enc in encs:
+        cmd = [FFMPEG, "-y", "-v", "error", "-i", a.video, "-map", "0:v:0", "-map", "0:a:0?", "-vf", scale] + enc + \
+              ["-force_key_frames", "expr:gte(t,n_forced*%d)" % a.seg, "-c:a", "aac", "-b:a", "96k", "-ac", "2",
+               "-f", "segment", "-segment_time", str(a.seg), "-reset_timestamps", "1",
+               "-segment_format_options", "movflags=+faststart", "-progress", "pipe:1", "-nostats",
+               os.path.join(a.dir, "seg_%03d.mp4")]
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+        last = 0
+        for line in p.stdout:
+            if line.startswith("out_time_us=") and duration:
+                try:
+                    t = int(line.split("=")[1]) / 1e6
+                except ValueError:
+                    continue
+                if time.time() - last > 1:
+                    last = time.time()
+                    st.set(progress=min(0.99, t / duration))
+        err = p.stderr.read()
+        if p.wait() == 0:
+            break
+        print("Forhåndsvisning feilet med", enc[1], "-", err.strip()[-300:], file=sys.stderr, flush=True)
+        for f in glob.glob(os.path.join(a.dir, "seg_*.mp4")):
+            os.remove(f)
+    files = sorted(glob.glob(os.path.join(a.dir, "seg_*.mp4")))
+    if not files:
+        st.set(state="error", error=err.strip()[-400:] or "Kunne ikke lage forhåndsvisning")
+        sys.exit(1)
+    segs, t = [], 0.0
+    for f in files:
+        d = probe_duration(f)
+        segs.append({"file": os.path.basename(f), "start": round(t, 3), "dur": round(d, 3)})
+        t += d
+    st.set(state="done", progress=1, segs=segs, duration=duration)
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    c = sub.add_parser("check"); c.add_argument("--out", required=True)
+    t = sub.add_parser("transcribe")
+    t.add_argument("--video", required=True); t.add_argument("--job", required=True)
+    t.add_argument("--lang", default="no"); t.add_argument("--speakers", type=int, default=0)
+    t.add_argument("--no-diarize", action="store_true")
+    k = sub.add_parser("batch")
+    k.add_argument("--video", required=True); k.add_argument("--list", required=True)
+    k.add_argument("--status", required=True); k.add_argument("--fallback", required=True)
+    argv = sys.argv[1:]
+    if argv[:1] == ["--argsfile"]:
+        with open(argv[1], encoding="utf-8") as f:
+            argv = json.load(f)
+    pr = sub.add_parser("proxy")
+    pr.add_argument("--video", required=True); pr.add_argument("--dir", required=True)
+    pr.add_argument("--seg", type=int, default=120)
+    a = ap.parse_args(argv)
+    {"check": cmd_check, "transcribe": cmd_transcribe, "batch": cmd_batch, "proxy": cmd_proxy}[a.cmd](a)
+</script>
+
+<script type="text/plain" id="setupSh">
+set -e
+BASE="$HOME/.klippverk"
+mkdir -p "$BASE/bin"
+export PATH="$BASE/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+echo "== Snippmaster-oppsett (Mac) =="
+if ! command -v uv >/dev/null 2>&1; then
+  echo "Installerer uv (Python-verktøy) i ~/.klippverk/bin ..."
+  curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR="$BASE/bin" UV_NO_MODIFY_PATH=1 sh
+fi
+if [ ! -x "$BASE/venv/bin/python" ]; then
+  echo "Lager Python-miljø ..."
+  uv venv --python 3.12 "$BASE/venv"
+fi
+echo "Installerer mlx-whisper, pyannote.audio, soundfile og ffmpeg ..."
+uv pip install --python "$BASE/venv/bin/python" -U mlx-whisper "pyannote.audio>=4" soundfile static-ffmpeg
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "Henter ffmpeg ..."
+  "$BASE/venv/bin/python" -c "from static_ffmpeg import run; print(run.get_or_fetch_platform_executables_else_raise())"
+fi
+echo "Sjekker oppsett og tilgang til talermodellen ..."
+"$BASE/venv/bin/python" "$BASE/worker.py" check --out "$BASE/setup.json"
+echo "FERDIG"
+</script>
+
+<script type="text/plain" id="setupPs1">
+$ErrorActionPreference = "Continue"
+$BASE = Join-Path $env:USERPROFILE ".klippverk"
+$BIN = Join-Path $BASE "bin"
+New-Item -ItemType Directory -Force -Path $BIN | Out-Null
+$env:Path = "$BIN;" + (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links") + ";$env:Path"
+$PY = Join-Path $BASE "venv\Scripts\python.exe"
+Write-Output "== Snippmaster-oppsett (Windows) =="
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+  Write-Output "Installerer uv (Python-verktøy) i .klippverk\bin ..."
+  $env:UV_INSTALL_DIR = $BIN; $env:UV_NO_MODIFY_PATH = "1"
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
+}
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) { Write-Output "FEIL: fant ikke uv etter installasjon."; exit 3 }
+if (-not (Test-Path $PY)) { Write-Output "Lager Python-miljø ..."; uv venv --python 3.12 (Join-Path $BASE "venv"); if ($LASTEXITCODE -ne 0) { exit 4 } }
+Write-Output "Installerer PyTorch med CUDA, faster-whisper, pyannote.audio, ffmpeg og resten ..."
+uv pip install --python $PY --torch-backend=auto -U torch faster-whisper ctranslate2 transformers "pyannote.audio>=4" soundfile static-ffmpeg nvidia-cublas-cu12 "nvidia-cudnn-cu12>=9,<10"
+if ($LASTEXITCODE -ne 0) { Write-Output "FEIL: pakkeinstallasjonen feilet."; exit 5 }
+if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
+  Write-Output "Henter ffmpeg ..."
+  & $PY -c "from static_ffmpeg import run; print(run.get_or_fetch_platform_executables_else_raise())"
+}
+Write-Output "Sjekker oppsett, skjermkort og tilgang til talermodellen ..."
+& $PY (Join-Path $BASE "worker.py") check --out (Join-Path $BASE "setup.json")
+Write-Output "FERDIG"
+</script>
+
+<script type="module">
+{
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const q = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
+let PATHS = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+const LANGS = { no: "Norsk", en: "Engelsk", hu: "Ungarsk" };
+const COLORS = ["#ff4d2e", "#2f7dd1", "#2f9d63", "#b25bd6", "#d49a1d", "#1aa3a3", "#c8467f", "#6b7a8f"];
+const STAGES = { prepare: "Forbereder norsk modell (én gang, noen minutter)", audio: "Henter ut lyd", transcribe: "Transkriberer", diarize: "Skiller talere", write: "Lagrer", done: "Ferdig", error: "Feil" };
+
+let D, HOME, UID, BASE, PY, WORKER, WIN = false, SEP = "/";
+let jobs = [];
+let cur = null;           // aktiv jobb-id, eller null for ny video
+let tr = null;            // transkripsjonen til aktiv jobb
+let names = {};           // nye navn på talere
+let sel = { a: null, b: null };
+let pending = null;       // valgt video før start
+let skipDiar = false;
+let poll = null;
+
+const sh = async (cmd, timeout = 60000) => {
+  const r = await D.childProcess.exec(cmd, WIN ? { timeout } : { timeout, env: { PATH: PATHS, HOME } });
+  return { out: (r.stdout || "").trim(), err: (r.stderr || "").trim(), code: r.code };
+};
+const readJSON = async (p, fb = null) => { try { return JSON.parse(await D.fs.readFile(p, "utf8")); } catch { return fb; } };
+const writeJSON = (p, o) => D.fs.writeFile(p, JSON.stringify(o), "utf8");
+
+function fmt(t) {
+  t = Math.max(0, t || 0);
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = Math.floor(t % 60);
+  const mm = String(m).padStart(2, "0"), ss = String(s).padStart(2, "0");
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+const fmtP = (t) => fmt(t) + "." + Math.floor(((t || 0) % 1) * 10);
+function nameTs(t) {
+  const h = Math.floor(t / 3600), m = Math.floor((t % 3600) / 60), s = Math.floor(t % 60);
+  const ms = String(m).padStart(2, "0") + "m" + String(s).padStart(2, "0") + "s";
+  return h ? `${h}h${ms}` : ms;
+}
+function parseT(str) {
+  str = String(str || "").trim().replace(",", ".");
+  if (!str) return null;
+  let m = str.match(/^(?:(\d+)h)?\s*(?:(\d+)m)?\s*(?:(\d+(?:\.\d+)?)s)?$/i);
+  if (m && /[hms]/i.test(str)) return (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0);
+  const parts = str.split(":").map(Number);
+  if (parts.some((x) => Number.isNaN(x))) return null;
+  return parts.reduce((acc, x) => acc * 60 + x, 0);
+}
+const fmtSize = (b) => b > 1e9 ? (b / 1e9).toFixed(2) + " GB" : (b / 1e6).toFixed(0) + " MB";
+
+const J = (...p) => p.join(SEP);
+const baseName = (p) => String(p).split(/[\\/]/).pop();
+const psq = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+
+/* ---------- bakgrunnsjobber: lever uavhengig av appen ----------
+   Mac: launchd. Windows: Oppgaveplanlegger, kjørt skjult med conhost --headless. */
+async function runJob(name, args, log) {
+  return WIN ? runJobWin(name, args, log) : runJobMac(name, args, log);
+}
+async function running(name) {
+  if (WIN) {
+    const r = await sh(`schtasks /Query /TN "Snippmaster-${name}" /FO CSV /NH 2>nul`);
+    return /Running|Kjører|Kjorer/i.test(r.out);
+  }
+  const r = await sh(`/bin/launchctl print gui/${UID}/no.ohjoy.klippverk.${name} 2>/dev/null`);
+  return /state = running/.test(r.out);
+}
+async function runJobWin(name, args, log) {
+  const task = `Snippmaster-${name}`;
+  let a = args;
+  if (args[0] === PY && args[1] === WORKER) {
+    const af = J(BASE, `args-${name}.json`);
+    await D.fs.writeFile(af, JSON.stringify(args.slice(2)), "utf8");
+    a = [PY, WORKER, "--argsfile", af];
+  }
+  const line = a.map((x) => `"${x}"`).join(" ");
+  const cmdFile = J(BASE, `job-${name}.cmd`);
+  const body = `@echo off\r\nset PYTHONUNBUFFERED=1\r\nset PYTHONIOENCODING=utf-8\r\nset PYTHONUTF8=1\r\nset PATH=${BASE}\\bin;%LOCALAPPDATA%\\Microsoft\\WinGet\\Links;%PATH%\r\ncd /d "${BASE}"\r\n${line} > "${log}" 2>&1\r\n`;
+  await D.fs.writeFile(log, "", "utf8");
+  await D.fs.writeFile(cmdFile, body, "utf8");
+  await sh(`schtasks /End /TN "${task}" >nul 2>&1`);
+  const c = await sh(`schtasks /Create /F /TN "${task}" /SC ONCE /ST 00:00 /TR "conhost.exe --headless \\"${cmdFile}\\"" 2>&1`);
+  if (c.code !== 0) throw new Error("Kunne ikke lage jobben: " + c.out);
+  const r = await sh(`schtasks /Run /TN "${task}" 2>&1`);
+  if (r.code !== 0) throw new Error("Kunne ikke starte jobben: " + r.out);
+  await new Promise((res) => setTimeout(res, 800));
+}
+async function runJobMac(name, args, log) {
+  const label = `no.ohjoy.klippverk.${name}`;
+  const plist = `${HOME}/Library/LaunchAgents/${label}.plist`;
+  await sh(`/bin/launchctl bootout gui/${UID}/${label} 2>/dev/null; true`);
+  const all = ["/bin/sh", "-c", `/bin/rm -f ${q(plist)}; exec "$0" "$@"`, ...args];
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>${esc(label)}</string>
+<key>ProgramArguments</key><array>${all.map((x) => `<string>${esc(x)}</string>`).join("")}</array>
+<key>EnvironmentVariables</key><dict><key>PATH</key><string>${PATHS}</string><key>HOME</key><string>${esc(HOME)}</string><key>PYTHONUNBUFFERED</key><string>1</string><key>TOKENIZERS_PARALLELISM</key><string>false</string></dict>
+<key>WorkingDirectory</key><string>${esc(BASE)}</string>
+<key>RunAtLoad</key><true/><key>KeepAlive</key><false/>
+<key>ProcessType</key><string>Interactive</string>
+<key>StandardOutPath</key><string>${esc(log)}</string><key>StandardErrorPath</key><string>${esc(log)}</string>
+</dict></plist>
+`;
+  await D.fs.mkdir(`${HOME}/Library/LaunchAgents`, { recursive: true });
+  await D.fs.writeFile(log, "", "utf8");
+  await D.fs.writeFile(plist, xml, "utf8");
+  const r = await sh(`/bin/launchctl bootstrap gui/${UID} ${q(plist)} 2>&1`);
+  if (r.code !== 0) throw new Error("Kunne ikke starte jobben: " + r.out);
+}
+async function tail(path, n = 40) {
+  try {
+    const t = await D.fs.readFile(path, "utf8");
+    return t.replace(/\r/g, "").split("\n").filter((l) => l.trim()).slice(-n).join("\n");
+  } catch { return ""; }
+}
+
+/* ---------- oppsett ---------- */
+async function setupState() {
+  const hasPy = await D.fs.exists(PY);
+  const s = await readJSON(`${BASE}/setup.json`, {});
+  return { hasPy, ok: hasPy && s.ok, hf: !!s.hf_ok, s };
+}
+async function showSetup(msg) {
+  hideAll(); $("setup").hidden = false;
+  if (WIN) {
+    $("setupTitle").textContent = "Gjør PC-en klar";
+    $("setupIntro").textContent = "Snippmaster kjører alt lokalt på PC-en: ffmpeg, faster-whisper på skjermkortet (CUDA) og pyannote for å skille talere. Installasjonen tar noen minutter første gang.";
+    $("pmName").textContent = "Verktøy";
+    $("pkgText").textContent = "Installeres i %USERPROFILE%\\.klippverk, rører ikke resten av systemet. Krever et NVIDIA-skjermkort for full fart.";
+  }
+  const st = await setupState();
+  const brew = (await D.fs.exists(J(BASE, "bin", WIN ? "uv.exe" : "uv"))) || !!(WIN ? (await sh("where uv 2>nul")).out : (await sh("command -v uv")).out);
+  $("stBrew").className = "step " + (brew ? "ok" : "bad");
+  $("stPkg").className = "step " + (st.ok ? "ok" : "");
+  $("stHf").className = "step " + (st.hf ? "ok" : st.s.hf_error ? "bad" : "");
+  $("setupErr").textContent = msg || [st.s.error, st.s.hf_error].filter(Boolean).join("\n");
+  $("skipBtn").hidden = !st.ok;
+  $("installBtn").textContent = st.hasPy ? "Installer på nytt" : "Installer";
+}
+async function install(onlyCheck) {
+  $("setupErr").textContent = "";
+  $("setupLog").hidden = false;
+  try {
+    await D.fs.writeFile(WORKER, $("workerPy").textContent.replace(/^\n/, ""), "utf8");
+    if (onlyCheck) {
+      if (!(await D.fs.exists(PY))) return install(false);
+      await runJob("setup", [PY, WORKER, "check", "--out", `${BASE}/setup.json`], `${BASE}/setup.log`);
+    } else if (WIN) {
+      const ps = J(BASE, "setup.ps1");
+      await D.fs.writeFile(ps, "\ufeff" + $("setupPs1").textContent, "utf8");
+      await runJob("setup", ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps], J(BASE, "setup.log"));
+    } else {
+      await D.fs.writeFile(`${BASE}/setup.sh`, $("setupSh").textContent, "utf8");
+      await runJob("setup", ["/bin/bash", `${BASE}/setup.sh`], `${BASE}/setup.log`);
+    }
+  } catch (e) { $("setupErr").textContent = e.message; return; }
+  watchSetup();
+}
+function watchSetup() {
+  $("setupLog").hidden = false;
+  $("installBtn").disabled = $("checkBtn").disabled = true;
+  const tick = async () => {
+    $("setupLog").textContent = await tail(`${BASE}/setup.log`, 30);
+    $("setupLog").scrollTop = 1e9;
+    if (await running("setup")) return setTimeout(tick, 1500);
+    $("installBtn").disabled = $("checkBtn").disabled = false;
+    const st = await setupState();
+    if (st.ok && st.hf) return enterApp();
+    showSetup();
+  };
+  setTimeout(tick, 1200);
+}
+
+/* ---------- bibliotek ---------- */
+async function loadJobs() {
+  await D.fs.mkdir(`${BASE}/jobs`, { recursive: true });
+  const ents = await D.fs.readdir(`${BASE}/jobs`).catch(() => []);
+  const list = [];
+  for (const e of ents) {
+    if (!e.isDirectory) continue;
+    const meta = await readJSON(`${BASE}/jobs/${e.name}/meta.json`);
+    if (!meta) continue;
+    meta.status = await readJSON(`${BASE}/jobs/${e.name}/status.json`, {});
+    list.push(meta);
+  }
+  jobs = list.sort((x, y) => y.created - x.created);
+  renderLib();
+}
+function renderLib() {
+  $("lib").innerHTML = jobs.map((j) => {
+    const s = j.status || {};
+    const state = s.videoOnly ? "Kun video, ikke transkribert" : s.done ? LANGS[j.lang] : s.stage === "error" ? "Feil" : (STAGES[s.stage] || "Venter") + " ...";
+    return `<button class="item${j.id === cur ? " on" : ""}" data-id="${esc(j.id)}"><b>${esc(j.name)}</b><span>${esc(state)}</span></button>`;
+  }).join("") || `<p class="muted" style="margin:4px">Ingen videoer ennå.</p>`;
+}
+
+/* ---------- innstillinger: arbeidsmappe og utmappe ---------- */
+const VIDEO_EXT = /\.(mov|mp4|m4v|mkv|avi|webm|mts|m2ts|mxf|wmv|mpg|mpeg|3gp)$/i;
+let settings = { inDir: "", outDir: "", same: true };
+const defaultDir = () => WIN ? `${HOME}\\Videos\\Snippmaster` : `${HOME}/Movies/Snippmaster`;
+async function loadSettings() {
+  settings = { inDir: defaultDir(), outDir: defaultDir(), same: true, ...(await readJSON(`${BASE}/settings.json`, {})) };
+  if (settings.same) settings.outDir = settings.inDir;
+  await D.fs.mkdir(settings.inDir, { recursive: true }).catch(() => {});
+  await D.fs.mkdir(settings.outDir, { recursive: true }).catch(() => {});
+}
+const saveSettings = () => writeJSON(`${BASE}/settings.json`, settings);
+const stemOf = (p) => baseName(p).replace(/\.[^.]+$/, "");
+const extOf = (p) => { const m = baseName(p).match(/\.[^.]+$/); return m ? m[0] : ".mp4"; };
+
+function renderSettings() {
+  clearInterval(poll);
+  stopPlayer();
+  cur = null; tr = null; renderLib();
+  $("title").textContent = "Innstillinger";
+  ["search", "copyBtn", "finderBtn", "outBtn"].forEach((id) => ($(id).hidden = true));
+  $("clipbar").hidden = true;
+  $("body").innerHTML = `
+    <div style="max-width:720px;margin:12px auto">
+      <div class="setrow">
+        <b>Arbeidsmappe for videoer</b>
+        <span class="muted">Legg videoene her, så dukker de opp under «Ny video» og kan velges med ett klikk.</span>
+        <span class="p">${esc(settings.inDir)}</span>
+        <div class="btns"><button data-set="inDir">Endre mappe</button><button data-open="${esc(settings.inDir)}">Åpne i ${WIN ? "Utforsker" : "Finder"}</button></div>
+      </div>
+      <label class="setrow" style="grid-template-columns:auto 1fr;align-items:center;cursor:pointer">
+        <input type="checkbox" id="sameIn" ${settings.same ? "checked" : ""} style="min-height:20px;width:20px">
+        <span><b>Lagre transkripsjoner og klipp i samme mappe</b><br><span class="muted">Hver video får sin egen undermappe med tekst, undertekster og klipp.</span></span>
+      </label>
+      <div class="setrow" ${settings.same ? "hidden" : ""}>
+        <b>Mappe for transkripsjoner og klipp</b>
+        <span class="p">${esc(settings.outDir)}</span>
+        <div class="btns"><button data-set="outDir">Endre mappe</button><button data-open="${esc(settings.outDir)}">Åpne i ${WIN ? "Utforsker" : "Finder"}</button></div>
+      </div>
+      <p class="muted">Resultatet for en video havner i <span class="mono">${esc(J(settings.outDir, "videonavn"))}</span>.</p>
+    </div>`;
+  $("sameIn").onchange = async (e) => {
+    settings.same = e.target.checked;
+    if (settings.same) settings.outDir = settings.inDir;
+    await saveSettings(); renderSettings();
+  };
+}
+
+/* ---------- innebygd filutforsker ---------- */
+let br = { mode: "file", dir: "", onPick: null };
+function openBrowser(mode, startDir, onPick) {
+  br = { mode, dir: startDir, onPick };
+  $("brTitle").textContent = mode === "file" ? "Velg video" : "Velg mappe";
+  $("brPick").hidden = mode !== "folder";
+  const places = WIN
+    ? [["Arbeidsmappe", settings.inDir], ["Hjem", HOME], ["Videos", `${HOME}\\Videos`], ["Downloads", `${HOME}\\Downloads`], ["Desktop", `${HOME}\\Desktop`], ["Documents", `${HOME}\\Documents`]]
+    : [["Arbeidsmappe", settings.inDir], ["Hjem", HOME], ["Movies", `${HOME}/Movies`], ["Downloads", `${HOME}/Downloads`], ["Desktop", `${HOME}/Desktop`], ["Documents", `${HOME}/Documents`]];
+  $("brQuick").innerHTML = places.map(([l, p]) => `<button data-go="${esc(p)}">${esc(l)}</button>`).join("");
+  $("browser").hidden = false;
+  listDir(startDir);
+}
+const closeBrowser = () => { $("browser").hidden = true; };
+const parentOf = (p) => {
+  const i = Math.max(p.lastIndexOf("/"), p.lastIndexOf("\\"));
+  if (i <= 0) return WIN ? p.slice(0, 3) : "/";
+  if (WIN && i === 2) return p.slice(0, 3);
+  return p.slice(0, i);
+};
+async function listDir(dir) {
+  br.dir = dir;
+  $("brPath").textContent = dir;
+  $("brErr").innerHTML = "";
+  $("brList").innerHTML = `<p class="muted" style="padding:8px">Leser mappen ...</p>`;
+  let ents;
+  try { ents = await D.fs.readdir(dir); }
+  catch (e) {
+    $("brList").innerHTML = "";
+    if (/EPERM|EACCES/.test(e.message) && !WIN) {
+      $("brErr").innerHTML = `macOS stopper Snippmaster fra å lese denne mappen. Gi tilgang under <b>System Settings &gt; Privacy &amp; Security &gt; Files &amp; Folders</b>, eller flytt videoen til arbeidsmappen.`;
+    } else $("brErr").textContent = "Kan ikke åpne mappen: " + e.message;
+    return;
+  }
+  const dirs = ents.filter((e) => e.isDirectory && !e.name.startsWith(".") && !/\.(app|photoslibrary|bundle)$/.test(e.name)).sort((a, b) => a.name.localeCompare(b.name, "nb"));
+  const files = br.mode === "file" ? ents.filter((e) => e.isFile && VIDEO_EXT.test(e.name)) : [];
+  const fileRows = [];
+  for (const f of files) {
+    const st = await D.fs.stat(J(dir, f.name)).catch(() => null);
+    fileRows.push({ name: f.name, size: st?.size || 0, t: st?.mtimeMs || 0 });
+  }
+  fileRows.sort((a, b) => b.t - a.t);
+  $("brList").innerHTML =
+    dirs.map((d) => `<button class="fi" data-dir="${esc(J(dir, d.name))}"><span>▸</span><span class="n">${esc(d.name)}</span><span class="m">mappe</span></button>`).join("") +
+    fileRows.map((f) => `<button class="fi" data-file="${esc(J(dir, f.name))}" data-size="${f.size}"><span>▶</span><span class="n">${esc(f.name)}</span><span class="m">${fmtSize(f.size)} · ${new Date(f.t).toLocaleDateString("nb-NO")}</span></button>`).join("") ||
+    `<p class="muted" style="padding:8px">${br.mode === "file" ? "Ingen videoer eller mapper her." : "Ingen undermapper her."}</p>`;
+}
+$("brList").addEventListener("click", (e) => {
+  const d = e.target.closest("[data-dir]");
+  if (d) return listDir(d.dataset.dir);
+  const f = e.target.closest("[data-file]");
+  if (f && br.onPick) { closeBrowser(); br.onPick(f.dataset.file, Number(f.dataset.size)); }
+});
+$("brQuick").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) listDir(b.dataset.go); });
+$("brUp").onclick = () => listDir(parentOf(br.dir));
+$("brCancel").onclick = closeBrowser;
+$("brPick").onclick = () => { closeBrowser(); br.onPick && br.onPick(br.dir); };
+$("browser").addEventListener("click", (e) => { if (e.target.id === "browser") closeBrowser(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("browser").hidden) closeBrowser(); });
+
+/* ---------- ny video ---------- */
+async function resolvePath(file) {
+  if (D.pathForFile) { try { const p = D.pathForFile(file); if (p) return p; } catch {} }
+  if (file.path) return file.path;
+  if (WIN) {
+    const dirs = ["Downloads", "Desktop", "Videos", "Documents", "Pictures", "OneDrive"].map((d) => psq(HOME + "\\" + d)).join(",");
+    const cmd = `Get-ChildItem -Path ${dirs} -Recurse -Depth 5 -File -Filter ${psq(file.name)} -ErrorAction SilentlyContinue | Where-Object { $_.Length -eq ${Number(file.size)} } | Select-Object -First 1 -ExpandProperty FullName`;
+    const r = await sh(`powershell -NoProfile -Command "${cmd.replace(/"/g, '\\"')}"`, 60000);
+    return r.out.split(/\r?\n/)[0].trim() || null;
+  }
+  // Spotlight + find, så velg beste treff. Størrelsen fra dra-og-slipp kan mangle, så den brukes bare som tiebreaker.
+  const r = await sh(`/usr/bin/mdfind -onlyin ${q(HOME)} -name ${q(file.name)} 2>/dev/null | /usr/bin/head -n 40`, 20000);
+  const f = await sh(`/usr/bin/find ${["Downloads", "Desktop", "Movies", "Documents", "Pictures"].map((d) => q(HOME + "/" + d)).join(" ")} -maxdepth 5 -type f -name ${q(file.name)} 2>/dev/null | /usr/bin/head -n 20`, 30000);
+  // Appens egen filtilgang kan nå mapper som kommandoer ikke får lese, så søk også med den.
+  const own = [];
+  const walk = async (dir, depth) => {
+    if (own.length > 10) return;
+    const ents = await D.fs.readdir(dir).catch(() => []);
+    for (const e of ents) {
+      if (e.name.startsWith(".")) continue;
+      const p = dir + "/" + e.name;
+      if (e.isFile && e.name === file.name) own.push(p);
+      else if (e.isDirectory && depth > 0 && !e.name.endsWith(".app") && !e.name.endsWith(".photoslibrary")) await walk(p, depth - 1);
+    }
+  };
+  for (const d of ["Downloads", "Desktop", "Movies", "Documents"]) await walk(`${HOME}/${d}`, 2);
+  const cands = [...new Set((r.out + "\n" + f.out + "\n" + own.join("\n")).split("\n").map((s) => s.trim()).filter((p) => p.endsWith("/" + file.name) && !p.includes("/.klippverk/") && !p.includes("/.Trash/")))];
+  if (!cands.length) return null;
+  let best = null, bestT = -1, denied = null;
+  for (const p of cands) {
+    const st = await D.fs.stat(p).catch((e) => { if (/EPERM|EACCES/.test(e.message)) denied = denied || p; return null; });
+    if (!st) continue;
+    if (file.size && st.size === file.size) return p;
+    if (st.mtimeMs > bestT) { best = p; bestT = st.mtimeMs; }
+  }
+  return best || denied || cands[0];
+}
+
+async function listWorkVideos(choose) {
+  const ents = await D.fs.readdir(settings.inDir).catch(() => []);
+  const rows = [];
+  for (const e of ents) {
+    if (!e.isFile || !VIDEO_EXT.test(e.name)) continue;
+    const p = J(settings.inDir, e.name);
+    const st = await D.fs.stat(p).catch(() => null);
+    rows.push({ p, name: e.name, size: st?.size || 0, t: st?.mtimeMs || 0 });
+  }
+  rows.sort((a, b) => b.t - a.t);
+  const done = new Set(jobs.map((j) => j.video));
+  if (!$("vids")) return;
+  $("vids").innerHTML = `<h3>Videoer i arbeidsmappen (${esc(settings.inDir)})</h3>` + (rows.length
+    ? rows.map((r) => `<button class="fi" data-pick="${esc(r.p)}" data-size="${r.size}"><span>▶</span><span class="n">${esc(r.name)}</span><span class="m">${done.has(r.p) ? "transkribert · " : ""}${fmtSize(r.size)}</span></button>`).join("")
+    : `<p class="muted">Tom. Legg videoer i mappen, så dukker de opp her. <button data-open="${esc(settings.inDir)}" style="min-height:32px;padding:4px 10px">Åpne mappen</button></p>`);
+  $("vids").onclick = (e) => { const b = e.target.closest("[data-pick]"); if (b) choose(b.dataset.pick, Number(b.dataset.size)); };
+}
+
+function renderNew(msg) {
+  stopPlayer();
+  cur = null; tr = null; renderLib();
+  $("title").textContent = "Ny video";
+  ["search", "copyBtn", "finderBtn", "outBtn"].forEach((id) => ($(id).hidden = true));
+  $("clipbar").hidden = true;
+  $("body").innerHTML = `
+    <div class="drop" id="drop">
+      <p class="big">Dra en video hit</p>
+      <p>Opptil 4 GB. Eller velg en video fra arbeidsmappen under, eller let deg frem til den.</p>
+      <div class="form"><button id="browseBtn">Finn video ...</button><input type="text" id="pathIn" placeholder="eller lim inn filsti til videoen" value="${esc(pending?.path || "")}"></div>
+      <div class="form">
+        <select id="langIn">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+        <select id="spkIn"><option value="0">Antall talere: finn selv</option>${[1, 2, 3, 4, 5, 6, 8].map((n) => `<option value="${n}">${n} ${n === 1 ? "taler" : "talere"}</option>`).join("")}</select>
+        <button class="pri" id="startBtn">Start transkribering</button>
+        <button id="playOnlyBtn">Åpne i spilleren uten transkribering</button>
+      </div>
+      <p class="muted" id="pickInfo">${pending ? esc(pending.path) + " · " + fmtSize(pending.size) : ""}</p>
+      <div class="err" id="newErr">${esc(msg || "")}</div>
+    </div>
+    <div class="vids" id="vids"></div>`;
+  const choose = (p, size) => {
+    pending = { path: p, size };
+    $("pathIn").value = p; $("newErr").textContent = "";
+    $("pickInfo").textContent = p + (size ? " · " + fmtSize(size) : "");
+  };
+  $("browseBtn").onclick = () => openBrowser("file", settings.inDir, choose);
+  listWorkVideos(choose);
+  const drop = $("drop");
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", async (e) => {
+    e.preventDefault(); drop.classList.remove("over");
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    $("newErr").textContent = ""; $("pickInfo").textContent = "Finner filen ...";
+    const p = await resolvePath(f);
+    if (!p) {
+      $("pickInfo").textContent = "";
+      if (!WIN) {
+        for (const d of ["Downloads", "Desktop", "Documents"]) {
+          const denied = await D.fs.readdir(`${HOME}/${d}`).then(() => false).catch((err) => /EPERM|EACCES/.test(err.message));
+          if (denied) return showAccessHelp(`${HOME}/${d}/${f.name}`);
+        }
+      }
+      $("newErr").textContent = `Fant ikke «${f.name}». Lim inn filstien i feltet i stedet (høyreklikk filen i Finder, hold Option og velg Copy as Pathname).`;
+      return;
+    }
+    pending = { path: p, size: f.size };
+    $("pathIn").value = p; $("pickInfo").textContent = p + " · " + fmtSize(f.size);
+  });
+  $("startBtn").onclick = () => startTranscribe(false);
+  $("playOnlyBtn").onclick = () => startTranscribe(true);
+}
+
+function showAccessHelp(p) {
+  const dirName = (p.slice(HOME.length + 1).split("/")[0]) || "mappen";
+  $("newErr").innerHTML = `macOS stopper Snippmaster fra å lese filer i ${esc(dirName)}. Gi tilgang under <b>System Settings &gt; Privacy &amp; Security &gt; Files &amp; Folders</b> (eller <b>Full Disk Access</b>) for Snippmaster, og trykk Start igjen.<br><br><button id="privBtn">Åpne innstillingene</button>`;
+  $("privBtn").onclick = () => sh(`/usr/bin/open "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"`);
+}
+
+async function exportTexts(j) {
+  if (j.exported) return;
+  const dir = `${BASE}/jobs/${j.id}`;
+  const od = j.outDir || J(settings.outDir, stemOf(j.video));
+  await D.fs.mkdir(od, { recursive: true }).catch(() => {});
+  const base = J(od, stemOf(j.video));
+  for (const [from, to] of [[`${dir}/transkripsjon.txt`, `${base}.transkripsjon.txt`], [`${dir}/transkripsjon.srt`, `${base}.srt`]]) {
+    if (!(await D.fs.exists(from))) continue;
+    await D.fs.copyFile(from, to).catch(() => sh(`/bin/cp ${q(from)} ${q(to)} 2>/dev/null; true`));
+  }
+  j.exported = true;
+  const meta = await readJSON(`${dir}/meta.json`, {});
+  await writeJSON(`${dir}/meta.json`, { ...meta, exported: true });
+}
+
+async function startTranscribe(videoOnly = false) {
+  $("newErr").textContent = "";
+  let p = $("pathIn").value.trim().replace(/^["']|["']$/g, "").replace(/^~(?=[\\/])/, HOME);
+  if (!p) { $("newErr").textContent = "Velg en video først."; return; }
+  let fsErr = "";
+  const st = await D.fs.stat(p).catch((e) => { fsErr = e.message; return null; });
+  if (!st && /EPERM|EACCES/.test(fsErr)) return showAccessHelp(p);
+  if (!st || !st.isFile) { $("newErr").textContent = "Fant ingen fil på den stien."; return; }
+  if (!videoOnly && (await running("transcribe"))) { $("newErr").textContent = "En annen video transkriberes allerede. Vent til den er ferdig, eller åpne denne i spilleren uten transkribering."; return; }
+  const id = Date.now().toString(36);
+  const dir = `${BASE}/jobs/${id}`;
+  const lang = $("langIn").value, speakers = Number($("spkIn").value);
+  await D.fs.mkdir(dir, { recursive: true });
+  let src = p;
+  const inWork = p.startsWith(settings.inDir + (WIN ? "\\" : "/"));
+  if (!WIN && !inWork) {
+    // Bakgrunnsjobben har ikke tilgang til beskyttede mapper (Downloads, Desktop, Documents).
+    // Appen lager derfor en APFS-klon i jobbmappen: tar null ekstra plass og går på et øyeblikk.
+    const dot = p.lastIndexOf(".");
+    src = `${dir}/kilde${dot > p.lastIndexOf("/") ? p.slice(dot) : ".mp4"}`;
+    $("newErr").textContent = "";
+    $("pickInfo").textContent = "Gjør videoen klar ...";
+    const c = await sh(`/bin/cp -c ${q(p)} ${q(src)} 2>&1 || /bin/cp ${q(p)} ${q(src)} 2>&1`, 900000);
+    if (!(await D.fs.exists(src))) {
+      $("pickInfo").textContent = "Kopierer videoen inn i Snippmaster ...";
+      await D.fs.copyFile(p, src).catch((e) => { c.out += " " + e.message; });
+    }
+    if (!(await D.fs.exists(src))) {
+      if (/not permitted|denied/i.test(c.out)) return showAccessHelp(p);
+      $("newErr").textContent = "Kunne ikke lese videoen: " + c.out; return;
+    }
+  }
+  const outDir = J(settings.outDir, stemOf(p));
+  await D.fs.mkdir(outDir, { recursive: true }).catch(() => {});
+  const meta = { id, video: p, src, outDir, name: baseName(p), size: st.size, lang, speakers, created: Date.now(), diarize: !skipDiar, videoOnly };
+  await writeJSON(`${dir}/meta.json`, meta);
+  if (videoOnly) {
+    await writeJSON(`${dir}/status.json`, { done: true, stage: "done", videoOnly: true });
+    pending = null;
+    await loadJobs();
+    return openJob(id);
+  }
+  await writeJSON(`${dir}/status.json`, { stage: "audio", progress: 0 });
+  await D.fs.writeFile(WORKER, $("workerPy").textContent.replace(/^\n/, ""), "utf8");
+  const args = [PY, WORKER, "transcribe", "--video", src, "--job", dir, "--lang", lang];
+  if (speakers) args.push("--speakers", String(speakers));
+  if (skipDiar) args.push("--no-diarize");
+  try { await runJob("transcribe", args, `${dir}/log.txt`); }
+  catch (e) { $("newErr").textContent = e.message; return; }
+  pending = null;
+  await loadJobs();
+  openJob(id);
+}
+
+async function transcribeExisting(j) {
+  const err = $("trErr");
+  if (await running("transcribe")) { if (err) err.textContent = "En annen video transkriberes allerede. Prøv igjen når den er ferdig."; return; }
+  const dir = `${BASE}/jobs/${j.id}`;
+  const lang = $("langIn2").value, speakers = Number($("spkIn2").value);
+  const meta = { ...(await readJSON(`${dir}/meta.json`, {})), lang, speakers, videoOnly: false, exported: false };
+  await writeJSON(`${dir}/meta.json`, meta);
+  await writeJSON(`${dir}/status.json`, { stage: "audio", progress: 0 });
+  await D.fs.writeFile(WORKER, $("workerPy").textContent.replace(/^\n/, ""), "utf8");
+  const args = [PY, WORKER, "transcribe", "--video", j.src || j.video, "--job", dir, "--lang", lang];
+  if (speakers) args.push("--speakers", String(speakers));
+  if (skipDiar) args.push("--no-diarize");
+  try { await runJob("transcribe", args, `${dir}/log.txt`); }
+  catch (e) { if (err) err.textContent = e.message; return; }
+  await loadJobs();
+  openJob(j.id);
+}
+
+/* ---------- åpne en jobb ---------- */
+async function openJob(id) {
+  clearInterval(poll);
+  stopPlayer();
+  cur = id; tr = null; sel = { a: null, b: null };
+  renderLib();
+  const j = jobs.find((x) => x.id === id);
+  if (!j) return renderNew();
+  $("title").textContent = j.name;
+  $("finderBtn").hidden = false;
+  $("outBtn").hidden = false;
+  $("outBtn").onclick = () => D.shell.openPath(j.outDir || J(settings.outDir, stemOf(j.video))).catch(() => {});
+  const st = await readJSON(`${BASE}/jobs/${id}/status.json`, {});
+  if (st.done) return showTranscript(j);
+  showProgress(j);
+  poll = setInterval(() => showProgress(j), 2000);
+}
+
+async function showProgress(j) {
+  if (cur !== j.id) return;
+  const dir = `${BASE}/jobs/${j.id}`;
+  const st = await readJSON(`${dir}/status.json`, {});
+  if (st.done) { clearInterval(poll); await exportTexts(j).catch(() => {}); await loadJobs(); D.notification?.show({ body: `Transkripsjonen av ${j.name} er ferdig.` }).catch(() => {}); return showTranscript(j); }
+  const alive = await running("transcribe");
+  const log = await tail(`${dir}/log.txt`, 8);
+  const pct = st.progress == null ? null : Math.round(st.progress * 100);
+  const dead = !alive && st.stage !== "error";
+  const now = Date.now() / 1000;
+  const dur = (s) => { s = Math.max(0, Math.round(s)); const m = Math.floor(s / 60); return m ? `${m} min ${s % 60} s` : `${s} s`; };
+  const order = ["audio", ...(st.stages?.prepare ? ["prepare"] : []), "transcribe", "diarize", "write"];
+  const idx = Math.max(0, order.indexOf(st.stage));
+  const names = { audio: "Henter ut lyd", prepare: "Forbereder norsk modell", transcribe: "Transkriberer", diarize: "Skiller talere", write: "Lagrer" };
+  const stepsHtml = order.map((s, i) => {
+    const t0 = st.stages?.[s], t1 = st.stages?.[order[i + 1]];
+    const state = i < idx ? "ferdig" : i === idx ? (st.stage === "error" ? "feil" : "pågår") : "venter";
+    const took = i < idx && t0 && t1 ? ` · ${dur(t1 - t0)}` : i === idx && t0 ? ` · ${dur(now - t0)}` : "";
+    return `<div class="step ${i < idx ? "ok" : i === idx && st.stage !== "error" ? "act" : ""}"><span class="dot"></span><div><b>${i + 1}. ${esc(names[s])}</b><span class="muted">${state}${took}</span></div></div>`;
+  }).join("");
+  const stageT = st.stage_started ? now - st.stage_started : 0;
+  const eta = st.progress > 0.03 && st.progress < 1 && stageT > 5 ? stageT * (1 - st.progress) / st.progress : null;
+  const since = st.updated ? now - st.updated : null;
+  const pulse = !alive ? "" : since == null ? "Jobber ..." : since < 20 ? `Jobber, siste livstegn for ${Math.round(since)} s siden` : `Jobber fortsatt (dette steget melder ikke fremdrift så ofte), sist for ${dur(since)} siden`;
+  const total = st.started ? `Brukt ${dur(now - st.started)} totalt` : "";
+  const etaTxt = eta != null ? `Anslått igjen av dette steget: ca. ${dur(eta)}` + (st.stage === "transcribe" ? ", deretter talerskille (vanligvis noen minutter)" : "") : "";
+  $("clipbar").hidden = true;
+  ["search", "copyBtn"].forEach((id) => ($(id).hidden = true));
+  $("body").innerHTML = `
+    <div class="prog">
+      <div class="stage">${esc(st.stage === "error" ? "Noe gikk galt" : dead ? "Stoppet" : `Steg ${idx + 1} av ${order.length}: ${names[st.stage] || "Starter"}`)}</div>
+      <div class="bar ${pct == null && alive ? "busy" : ""}"><i style="width:${pct == null ? 100 : pct}%"></i></div>
+      <div class="muted mono">${pct == null ? "" : pct + " %"}${st.stage === "transcribe" && st.at ? " · " + fmt(st.at) + " av " + fmt(st.duration) : ""}${st.duration ? " · videoen er " + fmt(st.duration) + " lang" : ""}</div>
+      <div class="muted">${esc([etaTxt, total].filter(Boolean).join(" · "))}</div>
+      <div class="muted"><span class="live ${alive ? "on" : ""}"></span>${esc(pulse || (dead ? "Jobben kjører ikke lenger." : ""))}</div>
+      <div class="steps">${stepsHtml}</div>
+      <p class="muted">Du kan lukke Snippmaster; jobben fortsetter i bakgrunnen. Første gang lastes modellene ned (1 til 3 GB).</p>
+      ${st.error ? `<div class="err">${esc(st.error)}</div>` : ""}
+      ${(st.stage === "error" || dead) ? `<div><button class="pri" id="retryBtn">Prøv igjen</button></div>` : ""}
+      <pre class="log">${esc(log)}</pre>
+    </div>`;
+  if ($("retryBtn")) $("retryBtn").onclick = async () => {
+    clearInterval(poll);
+    pending = { path: j.video, size: j.size };
+    renderNew();
+  };
+  if (st.stage === "error" || dead) clearInterval(poll);
+}
+
+async function showTranscript(j) {
+  const dir = `${BASE}/jobs/${j.id}`;
+  tr = await readJSON(`${dir}/transcript.json`);
+  names = await readJSON(`${dir}/names.json`, {});
+  const stj = await readJSON(`${dir}/status.json`, {});
+  if (!tr && (j.videoOnly || stj.videoOnly)) tr = { lines: [], speakers: [], duration: j.duration || 0, videoOnly: true };
+  if (!tr) return showProgress(j);
+  $("search").hidden = $("copyBtn").hidden = !!tr.videoOnly;
+  $("search").value = "";
+  $("clipbar").hidden = false;
+  $("clipErr").textContent = "";
+  $("tFrom").value = $("tTo").value = "";
+  $("body").classList.add("split");
+  $("body").innerHTML = `
+    <div class="pcol">
+      <div class="vbox"><video id="vid" playsinline preload="auto"></video><div class="vmsg" id="vmsg">Forbereder avspilling ...</div></div>
+      <div class="ctrls">
+        <button id="pPlay" class="pri">Spill av</button>
+        <button data-jump="-10">-10 s</button><button data-jump="-2">-2 s</button><button data-jump="2">+2 s</button><button data-jump="10">+10 s</button>
+        <span class="tc" id="pTime">00:00 / ${fmt(tr.duration)}</span>
+      </div>
+      <div class="tl" id="tl" role="slider" aria-label="Tidslinje" tabindex="0"></div>
+      <div class="ticks" id="ticks"></div>
+      <div class="ctrls">
+        <button id="pIn">Start her</button><button id="pOut">Slutt her</button><button class="hot" id="pAdd">Legg til klipp</button>
+        <label class="muted" style="margin-left:auto;cursor:pointer;display:flex;gap:6px;align-items:center"><input type="checkbox" id="follow" checked style="min-height:16px;width:16px"> Følg teksten</label>
+      </div>
+      <div class="keys"><kbd>Mellomrom</kbd> spill/pause · <kbd>←</kbd><kbd>→</kbd> 2 s, med Shift 10 s · <kbd>I</kbd> start her · <kbd>O</kbd> slutt her · <kbd>L</kbd> legg til klipp</div>
+    </div>
+    <div class="tcol" id="tcol"></div>`;
+  renderTranscript();
+  initPlayer(j);
+  renderClips();
+  updateCount();
+  $("boostIn").checked = settings.boost !== false;
+  watchBatch(j.id);
+}
+const who = (sp) => names[sp] || sp;
+const color = (sp) => COLORS[(tr.speakers.indexOf(sp) + COLORS.length) % COLORS.length];
+
+function renderTranscript() {
+  const box0 = $("tcol") || $("body");
+  if (tr.videoOnly) {
+    if (!$("trBox")) {
+      const j = jobs.find((x) => x.id === cur);
+      box0.innerHTML = `
+        <div class="setrow" id="trBox">
+          <b>Ikke transkribert</b>
+          <span class="muted">Bruk spilleren og tidslinjen til å markere klipp med Start her og Slutt her. Vil du ha teksten også, kan du transkribere når som helst.</span>
+          <div class="btns">
+            <select id="langIn2">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${j?.lang === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+            <select id="spkIn2"><option value="0">Antall talere: finn selv</option>${[1, 2, 3, 4, 5, 6, 8].map((n) => `<option value="${n}">${n} ${n === 1 ? "taler" : "talere"}</option>`).join("")}</select>
+            <button class="pri" id="trNow">Transkriber denne videoen</button>
+          </div>
+          <div class="err" id="trErr"></div>
+        </div>`;
+      $("trNow").onclick = () => transcribeExisting(jobs.find((x) => x.id === cur));
+    }
+    drawTimeline();
+    return;
+  }
+  const qy = $("search").value.trim().toLowerCase();
+  const a = parseT($("tFrom").value), b = parseT($("tTo").value);
+  const head = `
+    ${tr.diarization_error ? `<p class="err">Talerne ble ikke skilt: ${esc(tr.diarization_error)}</p>` : ""}
+    <div class="speakers">${tr.speakers.map((sp) => `<span class="spk"><i style="background:${color(sp)}"></i><input data-sp="${esc(sp)}" value="${esc(who(sp))}" aria-label="Navn på ${esc(sp)}"></span>`).join("")}</div>
+    <p class="muted">${esc(LANGS[tr.lang] || tr.lang)} · ${fmt(tr.duration)} · ${tr.lines.length} linjer · modell ${esc(tr.model || "")}</p>`;
+  const rows = tr.lines.map((ln, i) => {
+    if (qy && !ln.t.toLowerCase().includes(qy) && !who(ln.sp).toLowerCase().includes(qy)) return "";
+    const inside = a != null && b != null && ln.s >= a - 0.01 && ln.e <= b + 0.01;
+    const edge = (a != null && Math.abs(ln.s - a) < 0.05) || (b != null && Math.abs(ln.e - b) < 0.05);
+    return `<div class="ln${inside ? " in" : ""}${edge ? " edge" : ""}" data-i="${i}"><span class="ts mono">${fmt(ln.s)}</span><span class="who" style="color:${color(ln.sp)}">${esc(who(ln.sp))}</span><span class="tx">${esc(ln.t)}</span></div>`;
+  }).join("");
+  const box = $("tcol") || $("body");
+  const scroll = box.scrollTop;
+  box.innerHTML = head + `<div class="lines">${rows || `<p class="muted">Ingen treff.</p>`}</div>`;
+  box.scrollTop = scroll;
+  P.now = -1;
+  drawTimeline();
+}
+
+/* ---------- videospiller med tidslinje ---------- */
+const P = { segs: [], idx: -1, url: null, dir: "", dur: 0, now: -1, job: null, timer: null, scrubT: 0 };
+const vid = () => $("vid");
+function stopPlayer() {
+  clearTimeout(P.timer);
+  const v = vid();
+  if (v) { v.pause(); v.removeAttribute("src"); v.load(); }
+  if (P.url) URL.revokeObjectURL(P.url);
+  Object.assign(P, { segs: [], idx: -1, url: null, job: null, now: -1 });
+  $("body").classList.remove("split");
+}
+async function initPlayer(j) {
+  stopPlayer();
+  $("body").classList.add("split");
+  Object.assign(P, { job: j.id, dir: `${BASE}/jobs/${j.id}/proxy`, dur: tr.duration || 0 });
+  drawTimeline();
+  const v = vid();
+  v.addEventListener("timeupdate", onTime);
+  v.addEventListener("play", () => ($("pPlay").textContent = "Pause"));
+  v.addEventListener("pause", () => ($("pPlay").textContent = "Spill av"));
+  v.addEventListener("ended", () => { if (P.idx + 1 < P.segs.length) loadSeg(P.idx + 1, 0, true); });
+  watchProxy(j);
+}
+async function watchProxy(j) {
+  if (P.job !== j.id) return;
+  const st = await readJSON(`${P.dir}/proxy.json`, null);
+  if (st?.state === "done" && st.segs?.length) {
+    P.segs = st.segs;
+    const total = st.duration || st.segs.reduce((s, x) => s + x.dur, 0);
+    if (!P.dur || tr.videoOnly) { P.dur = total; if (tr && !tr.duration) tr.duration = total; drawTimeline(); onTime(); }
+    $("vmsg").hidden = true;
+    return loadSeg(0, 0, false);
+  }
+  const busy = await running("proxy");
+  if (!st || (st.state !== "running" && !busy) || (st.state === "running" && !busy)) {
+    if (st?.state === "error") {
+      $("vmsg").innerHTML = `<div>Kunne ikke lage forhåndsvisning.</div><div class="muted">${esc((st.error || "").slice(-200))}</div><button id="proxyRetry">Prøv igjen</button>`;
+      $("proxyRetry").onclick = () => startProxy(j);
+      return;
+    }
+    if (!busy) await startProxy(j);
+  }
+  const pct = st?.progress ? Math.round(st.progress * 100) : 0;
+  $("vmsg").hidden = false;
+  $("vmsg").innerHTML = busy && (!st || st.state !== "running")
+    ? `<div>Venter på at en annen forhåndsvisning blir ferdig ...</div>`
+    : `<div>Lager forhåndsvisning for avspilling ... ${pct} %</div><div class="bar"><i style="width:${pct}%"></i></div><div class="muted">Én gang per video. Klippene lages fortsatt fra originalen i full kvalitet.</div>`;
+  P.timer = setTimeout(() => watchProxy(j), 1500);
+}
+async function startProxy(j) {
+  await D.fs.mkdir(P.dir, { recursive: true });
+  await writeJSON(`${P.dir}/proxy.json`, { state: "running", progress: 0 });
+  await D.fs.writeFile(WORKER, $("workerPy").textContent.replace(/^\n/, ""), "utf8");
+  await runJob("proxy", [PY, WORKER, "proxy", "--video", j.src || j.video, "--dir", P.dir], `${P.dir}/log.txt`).catch((e) => {
+    $("vmsg").textContent = "Kunne ikke starte forhåndsvisningen: " + e.message;
+  });
+  clearTimeout(P.timer);
+  P.timer = setTimeout(() => watchProxy(j), 1500);
+}
+async function loadSeg(i, offset, play) {
+  const v = vid();
+  if (!v || !P.segs[i]) return;
+  if (i !== P.idx) {
+    const data = await D.fs.readFile(J(P.dir, P.segs[i].file));
+    const url = URL.createObjectURL(new Blob([data], { type: "video/mp4" }));
+    if (P.url) URL.revokeObjectURL(P.url);
+    P.url = url; P.idx = i;
+    v.src = url;
+    await new Promise((r) => v.addEventListener("loadedmetadata", r, { once: true }));
+  }
+  v.currentTime = Math.max(0, Math.min(offset, (v.duration || P.segs[i].dur) - 0.05));
+  if (play) v.play().catch(() => {});
+  onTime();
+}
+const gTime = () => (P.idx >= 0 && vid() ? P.segs[P.idx].start + vid().currentTime : 0);
+function seek(t, play) {
+  if (!P.segs.length) return;
+  t = Math.max(0, Math.min(t, P.dur || t));
+  let i = 0;
+  while (i + 1 < P.segs.length && P.segs[i + 1].start <= t) i++;
+  loadSeg(i, t - P.segs[i].start, play ?? (vid() && !vid().paused));
+}
+function onTime() {
+  const t = gTime();
+  if ($("pTime")) $("pTime").textContent = `${fmt(t)} / ${fmt(P.dur)}`;
+  const ph = $("ph");
+  if (ph && P.dur) ph.style.left = `${(t / P.dur) * 100}%`;
+  if (!tr) return;
+  let lo = 0, hi = tr.lines.length - 1, k = -1;
+  while (lo <= hi) { const m = (lo + hi) >> 1; if (tr.lines[m].s <= t) { k = m; lo = m + 1; } else hi = m - 1; }
+  if (k !== P.now) {
+    document.querySelector(".ln.now")?.classList.remove("now");
+    const el = document.querySelector(`.ln[data-i="${k}"]`);
+    if (el) { el.classList.add("now"); if ($("follow")?.checked && vid() && !vid().paused) el.scrollIntoView({ block: "center", behavior: "smooth" }); }
+    P.now = k;
+  }
+}
+function drawTimeline() {
+  const tl = $("tl");
+  if (!tl || !tr) return;
+  const D_ = P.dur || tr.duration || 1, pc = (x) => `${(Math.max(0, Math.min(x, D_)) / D_) * 100}%`;
+  const blocks = [];
+  for (const ln of tr.lines) {
+    const last = blocks[blocks.length - 1];
+    if (last && last.sp === ln.sp && ln.s - last.e < 2) last.e = ln.e; else blocks.push({ s: ln.s, e: ln.e, sp: ln.sp });
+  }
+  const ranges = parseClipList($("clipList").value).items;
+  const a = parseT($("tFrom").value), b = parseT($("tTo").value);
+  tl.innerHTML =
+    blocks.map((x) => `<span class="sp" style="left:${pc(x.s)};width:calc(${pc(x.e - x.s)} + 1px);background:${color(x.sp)}"></span>`).join("") +
+    ranges.map((r) => `<span class="rg" style="left:${pc(r.a)};width:${pc(r.b - r.a)}" title="${esc(fmt(r.a) + "-" + fmt(r.b))}"></span>`).join("") +
+    (a != null ? `<span class="sel" style="left:${pc(a)};width:${b != null && b > a ? pc(b - a) : "2px"}"></span>` : "") +
+    `<span class="ph" id="ph" style="left:${pc(gTime())}"></span><span class="hov" id="hov" hidden></span>`;
+  $("ticks").innerHTML = [0, 0.25, 0.5, 0.75, 1].map((f) => `<span>${fmt(D_ * f)}</span>`).join("");
+}
+function tlTime(e) {
+  const r = $("tl").getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * (P.dur || tr.duration || 0);
+}
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest("#tl")) return;
+  $("tl").setPointerCapture(e.pointerId);
+  seek(tlTime(e));
+});
+document.addEventListener("pointermove", (e) => {
+  if (!e.target.closest("#tl") || !tr) return;
+  const t = tlTime(e), hov = $("hov");
+  if (hov) { hov.hidden = false; hov.textContent = fmt(t); hov.style.left = `${(t / (P.dur || 1)) * 100}%`; }
+  if (e.buttons === 1 && Date.now() - P.scrubT > 120) { P.scrubT = Date.now(); seek(t, false); }
+});
+document.addEventListener("pointerout", (e) => { if (e.target.closest?.("#tl") && $("hov")) $("hov").hidden = true; });
+document.addEventListener("click", (e) => {
+  const jb = e.target.closest("[data-jump]");
+  if (jb) return seek(gTime() + Number(jb.dataset.jump));
+  if (e.target.id === "pPlay") { const v = vid(); if (v && P.segs.length) v.paused ? v.play().catch(() => {}) : v.pause(); }
+  if (e.target.id === "pIn") markIn();
+  if (e.target.id === "pOut") markOut();
+  if (e.target.id === "pAdd") $("addBtn").click();
+});
+function markIn() {
+  $("tFrom").value = fmtP(gTime());
+  if (parseT($("tTo").value) != null && parseT($("tTo").value) <= gTime()) $("tTo").value = "";
+  renderTranscript();
+}
+function markOut() { $("tTo").value = fmtP(gTime()); renderTranscript(); }
+document.addEventListener("keydown", (e) => {
+  if (!tr || !$("vid") || !$("browser").hidden) return;
+  if (e.target.closest("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const v = vid();
+  if (e.key === " ") { e.preventDefault(); if (P.segs.length) v.paused ? v.play().catch(() => {}) : v.pause(); }
+  else if (e.key === "ArrowLeft") { e.preventDefault(); seek(gTime() - (e.shiftKey ? 10 : 2)); }
+  else if (e.key === "ArrowRight") { e.preventDefault(); seek(gTime() + (e.shiftKey ? 10 : 2)); }
+  else if (e.key.toLowerCase() === "i") { e.preventDefault(); markIn(); }
+  else if (e.key.toLowerCase() === "o") { e.preventDefault(); markOut(); }
+  else if (e.key.toLowerCase() === "l") { e.preventDefault(); $("addBtn").click(); }
+});
+
+/* ---------- klipp ---------- */
+async function clipList() {
+  return (await readJSON(`${BASE}/jobs/${cur}/clips.json`, [])) || [];
+}
+function parseClipList(text) {
+  const items = [], errors = [];
+  const parts = text.split(/\n|;|,\s+(?=\d)/).map((s) => s.trim()).filter(Boolean);
+  for (const raw of parts) {
+    const m = raw.match(/^([\d:.,hms]+)\s*(?:-|–|—|til|to)\s*([\d:.,hms]+)\s*(.*)$/i);
+    if (!m) { errors.push(`«${raw}» forstår jeg ikke. Skriv for eksempel 1:24-1:52.`); continue; }
+    const a = parseT(m[1]), b = parseT(m[2]);
+    if (a == null || b == null) { errors.push(`«${raw}»: ugyldig tid.`); continue; }
+    if (b <= a) { errors.push(`«${raw}»: slutt må være etter start.`); continue; }
+    if (tr?.duration && b > tr.duration + 0.5) { errors.push(`«${raw}»: videoen er bare ${fmt(tr.duration)} lang.`); continue; }
+    items.push({ a, b, title: m[3].trim() });
+  }
+  return { items, errors };
+}
+const slug = (s) => s.normalize("NFC").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "-").slice(0, 60);
+function updateCount() {
+  const { items, errors } = parseClipList($("clipList").value);
+  $("clipCount").textContent = items.length ? `${items.length} klipp i listen${errors.length ? `, ${errors.length} linje(r) med feil` : ""}` : "";
+}
+
+async function renderClips() {
+  const list = await clipList();
+  $("clips").innerHTML = list.slice().reverse().map((c) => {
+    const state = c.state === "done" ? "ferdig" : c.state === "error" ? "feil" : c.state === "running" ? `lager ... ${Math.round((c.progress || 0) * 100)} %` : "i kø";
+    return `<div class="clip"><span class="mono" title="${esc(c.out)}">${esc(baseName(c.out))}</span>
+      ${c.state === "running" ? `<span class="bar"><i style="width:${Math.round((c.progress || 0) * 100)}%"></i></span>` : ""}
+      <span class="muted">${esc(state)}</span>
+      ${c.state === "done" ? `<button data-show="${esc(c.out)}">Vis i ${WIN ? "Utforsker" : "Finder"}</button>` : ""}
+      ${c.state === "error" && c.error ? `<span class="err">${esc(c.error.slice(-160))}</span>` : ""}</div>`;
+  }).join("");
+}
+
+async function makeBatch() {
+  $("clipErr").textContent = "";
+  const j = jobs.find((x) => x.id === cur);
+  if (!j) return;
+  let text = $("clipList").value;
+  if (!text.trim() && $("tFrom").value && $("tTo").value) text = `${$("tFrom").value}-${$("tTo").value}`;
+  const { items, errors } = parseClipList(text);
+  if (errors.length) { $("clipErr").textContent = errors.join("\n"); return; }
+  if (!items.length) { $("clipErr").textContent = "Legg inn minst ett klipp, for eksempel 1:24-1:52."; return; }
+  if (await running("clip")) { $("clipErr").textContent = "Snippmaster lager allerede klipp. Vent til køen er ferdig."; return; }
+  const od = j.outDir || J(settings.outDir, stemOf(j.video));
+  await D.fs.mkdir(od, { recursive: true }).catch(() => {});
+  const ext = extOf(j.video), stem = stemOf(j.video), mode = $("mode").value, boost = $("boostIn").checked;
+  settings.boost = boost; saveSettings();
+  const taken = new Set();
+  const queue = [];
+  for (const it of items) {
+    const name = `${stem}_${nameTs(it.a)}-${nameTs(it.b)}${it.title ? "_" + slug(it.title) : ""}`;
+    let out = J(od, name + ext);
+    for (let n = 2; taken.has(out) || (await D.fs.exists(out)); n++) out = J(od, `${name}_${n}${ext}`);
+    taken.add(out);
+    queue.push({ out, a: it.a, b: it.b, title: it.title, mode, boost, state: "queued", progress: 0 });
+  }
+  const dir = `${BASE}/jobs/${cur}`;
+  const listFile = `${dir}/batch.json`, status = `${dir}/batch-status.json`;
+  await writeJSON(listFile, queue);
+  await writeJSON(status, { state: "running", items: queue, current: 0 });
+  const prev = (await clipList()).filter((c) => c.state === "done" || c.state === "error");
+  await writeJSON(`${dir}/clips.json`, [...prev, ...queue]);
+  await D.fs.writeFile(WORKER, $("workerPy").textContent.replace(/^\n/, ""), "utf8");
+  try {
+    await runJob("clip", [PY, WORKER, "batch", "--video", j.src || j.video, "--list", listFile, "--status", status, "--fallback", `${dir}/klipp`], `${dir}/clip-log.txt`);
+  } catch (e) { $("clipErr").textContent = e.message; return; }
+  $("clipList").value = ""; updateCount();
+  watchBatch(cur);
+}
+
+let batchTimer = null;
+async function watchBatch(id) {
+  clearTimeout(batchTimer);
+  const dir = `${BASE}/jobs/${id}`;
+  const st = await readJSON(`${dir}/batch-status.json`, null);
+  if (!st || !st.items) return;
+  const alive = await running("clip");
+  const prev = ((await readJSON(`${dir}/clips.json`, [])) || []).filter((c) => !st.items.some((x) => x.out === c.out));
+  // flytt klipp som ble laget i jobbmappen fordi bakgrunnsjobben ikke kunne skrive til målmappen
+  for (const it of st.items) {
+    if (it.state === "done" && it.work && !it.moved) {
+      await D.fs.rename(it.work, it.out).catch(() => D.fs.copyFile(it.work, it.out).then(() => D.fs.rm(it.work, { force: true })))
+        .then(() => { it.moved = true; })
+        .catch((e) => { it.state = "error"; it.error = "Klippet ble laget, men kunne ikke flyttes: " + e.message; });
+    }
+  }
+  const items = st.items.map((it) => (!alive && (it.state === "running" || it.state === "queued") && st.state !== "done") ? { ...it, state: "error", error: "Køen stoppet før dette klippet ble laget." } : it);
+  await writeJSON(`${dir}/clips.json`, [...prev, ...items]);
+  if (st.items.some((x) => x.work)) await writeJSON(`${dir}/batch-status.json`, { ...st, items: st.items });
+  const done = items.filter((x) => x.state === "done").length, failed = items.filter((x) => x.state === "error").length;
+  const finished = !alive || st.state === "done";
+  if (cur === id) {
+    renderClips();
+    $("clipBtn").disabled = !finished;
+    $("clipBtn").textContent = finished ? "Lag alle klipp" : `Lager klipp ${Math.min(done + failed + 1, items.length)} av ${items.length} ...`;
+  }
+  if (!finished) { batchTimer = setTimeout(() => watchBatch(id), 1000); return; }
+  if (!st.notified) {
+    D.notification?.show({ body: `Snippmaster: ${done} av ${items.length} klipp ferdig${failed ? `, ${failed} feilet` : ""}.` }).catch(() => {});
+    await writeJSON(`${dir}/batch-status.json`, { ...st, notified: true });
+  }
+}
+
+/* ---------- oppstart ---------- */
+function hideAll() { ["gate", "setup", "app"].forEach((id) => ($(id).hidden = true)); }
+function gate(text, btn, fn) {
+  hideAll(); $("gate").hidden = false;
+  $("gateText").textContent = text;
+  $("gateBtn").hidden = !btn;
+  if (btn) { $("gateBtn").textContent = btn; $("gateBtn").onclick = fn; }
+}
+async function enterApp() {
+  hideAll(); $("app").hidden = false;
+  await loadSettings();
+  await loadJobs();
+  const running0 = jobs.find((j) => !j.status?.done && j.status?.stage !== "error");
+  if (running0 && (await running("transcribe"))) openJob(running0.id);
+  else if (jobs[0]) openJob(jobs[0].id);
+  else renderNew();
+}
+async function boot() {
+  const info = await D.os.info();
+  HOME = info.homedir;
+  if (WIN) {
+    SEP = "\\";
+    BASE = HOME + "\\.klippverk";
+    PY = BASE + "\\venv\\Scripts\\python.exe";
+    WORKER = BASE + "\\worker.py";
+  } else {
+    UID = (await sh("/usr/bin/id -u")).out;
+    BASE = HOME + "/.klippverk";
+    PATHS = `${BASE}/bin:${PATHS}`;
+    PY = BASE + "/venv/bin/python";
+    WORKER = BASE + "/worker.py";
+  }
+  await D.fs.mkdir(BASE, { recursive: true });
+  const st = await setupState();
+  if (await running("setup")) { await showSetup(); watchSetup(); }
+  else if (st.ok && (st.hf || skipDiar)) enterApp(); else showSetup();
+}
+
+/* hendelser */
+$("installBtn").onclick = () => install(false);
+$("hfSave").onclick = async () => {
+  const v = $("hfIn").value.trim();
+  if (!/^hf_[A-Za-z0-9]{20,}$/.test(v)) { $("setupErr").textContent = "Det ser ikke ut som en Hugging Face-nøkkel (starter med hf_)."; return; }
+  await D.fs.writeFile(J(BASE, "hf_token"), v, "utf8");
+  if (!WIN) await sh(`/bin/chmod 600 ${q(J(BASE, "hf_token"))}`);
+  $("hfIn").value = ""; $("setupErr").textContent = "Nøkkelen er lagret. Sjekker tilgang ...";
+  install(true);
+};
+$("checkBtn").onclick = () => install(true);
+$("skipBtn").onclick = () => { skipDiar = true; enterApp(); };
+$("newBtn").onclick = () => { clearInterval(poll); renderNew(); };
+$("settingsBtn").onclick = renderSettings;
+document.addEventListener("click", (e) => {
+  const o = e.target.closest("[data-open]");
+  if (o) { D.fs.mkdir(o.dataset.open, { recursive: true }).catch(() => {}).then(() => D.shell.openPath(o.dataset.open).catch(() => D.shell.showItemInFolder(o.dataset.open).catch(() => {}))); return; }
+  const s = e.target.closest("[data-set]");
+  if (s) openBrowser("folder", settings[s.dataset.set] || HOME, async (dir) => {
+    settings[s.dataset.set] = dir;
+    if (settings.same) { settings.inDir = dir; settings.outDir = dir; }
+    await saveSettings(); renderSettings();
+  });
+});
+$("lib").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) openJob(b.dataset.id); });
+$("search").addEventListener("input", () => tr && renderTranscript());
+$("tFrom").addEventListener("input", () => tr && renderTranscript());
+$("tTo").addEventListener("input", () => tr && renderTranscript());
+$("clipBtn").onclick = makeBatch;
+$("clipList").addEventListener("input", () => { updateCount(); drawTimeline(); });
+$("addBtn").onclick = () => {
+  const a = parseT($("tFrom").value), b = parseT($("tTo").value);
+  if (a == null || b == null || b <= a) { $("clipErr").textContent = "Velg både fra og til først, og til må være etter fra."; return; }
+  $("clipErr").textContent = "";
+  const t = $("clipList").value.replace(/\s+$/, "");
+  $("clipList").value = (t ? t + "\n" : "") + `${fmtP(a)}-${fmtP(b)} `;
+  $("tFrom").value = $("tTo").value = "";
+  updateCount(); renderTranscript();
+};
+$("finderBtn").onclick = () => { const j = jobs.find((x) => x.id === cur); if (j) D.shell.showItemInFolder(j.video).catch(() => {}); };
+$("clips").addEventListener("click", (e) => { const b = e.target.closest("[data-show]"); if (b) D.shell.showItemInFolder(b.dataset.show).catch(() => {}); });
+$("copyBtn").onclick = async () => {
+  if (!tr) return;
+  const txt = tr.lines.map((l) => `[${fmt(l.s)}] ${who(l.sp)}: ${l.t}`).join("\n");
+  try { await navigator.clipboard.writeText(txt); $("copyBtn").textContent = "Kopiert"; setTimeout(() => ($("copyBtn").textContent = "Kopier tekst"), 1500); } catch {}
+};
+$("body").addEventListener("click", (e) => {
+  const row = e.target.closest(".ln");
+  if (!row || !tr) return;
+  if (e.shiftKey) window.getSelection().removeAllRanges();
+  else if (window.getSelection().toString()) return;
+  const ln = tr.lines[Number(row.dataset.i)];
+  if (e.shiftKey) $("tTo").value = fmtP(ln.e);
+  else { $("tFrom").value = fmtP(ln.s); if (parseT($("tTo").value) != null && parseT($("tTo").value) <= ln.s) $("tTo").value = ""; seek(ln.s); }
+  renderTranscript();
+});
+$("body").addEventListener("change", async (e) => {
+  const inp = e.target.closest("input[data-sp]");
+  if (!inp || !cur) return;
+  names[inp.dataset.sp] = inp.value.trim() || inp.dataset.sp;
+  await writeJSON(`${BASE}/jobs/${cur}/names.json`, names);
+  renderTranscript();
+});
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => { if (!e.target.closest("#drop")) e.preventDefault(); });
+
+function drawIcon() {
+  /* gammeldags filmkamera med to filmruller */
+  const S = 256;
+  const c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d");
+  const circle = (cx, cy, r) => { x.beginPath(); x.arc(cx, cy, r, 0, Math.PI * 2); x.fill(); };
+  const g = x.createLinearGradient(0, 0, 0, S);
+  g.addColorStop(0, "#2c2d33"); g.addColorStop(1, "#111215");
+  x.fillStyle = g; x.beginPath(); x.roundRect(0, 0, S, S, 56); x.fill();
+  // filmruller
+  const reel = (cx, cy, r) => {
+    x.fillStyle = "#ecebe6"; circle(cx, cy, r);
+    x.fillStyle = "#18191d";
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+      circle(cx + Math.cos(a) * r * 0.56, cy + Math.sin(a) * r * 0.56, r * 0.2);
+    }
+    circle(cx, cy, r * 0.13);
+  };
+  reel(82, 78, 36);
+  reel(152, 70, 44);
+  // film mellom rullene og ned i kameraet
+  x.strokeStyle = "#ecebe6"; x.lineWidth = 5;
+  x.beginPath(); x.moveTo(82, 114); x.lineTo(96, 126); x.stroke();
+  x.beginPath(); x.moveTo(152, 114); x.lineTo(140, 126); x.stroke();
+  // kamerahus
+  const bg = x.createLinearGradient(0, 124, 0, 206);
+  bg.addColorStop(0, "#f4f3ee"); bg.addColorStop(1, "#cfcdc4");
+  x.fillStyle = bg; x.beginPath(); x.roundRect(44, 124, 138, 82, 14); x.fill();
+  // objektiv (trakt)
+  x.fillStyle = "#ff4d2e";
+  x.beginPath(); x.moveTo(182, 146); x.lineTo(224, 128); x.lineTo(224, 202); x.lineTo(182, 184); x.closePath(); x.fill();
+  x.fillStyle = "#c93a20"; x.fillRect(182, 146, 8, 38);
+  // detaljer på huset
+  x.fillStyle = "#18191d";
+  x.beginPath(); x.roundRect(58, 138, 54, 12, 6); x.fill();
+  x.beginPath(); x.roundRect(58, 160, 32, 32, 8); x.fill();
+  x.fillStyle = "#ff4d2e"; circle(150, 172, 9);
+  x.fillStyle = "#18191d"; circle(124, 172, 5);
+  // stativfot
+  x.fillStyle = "#ecebe6"; x.beginPath(); x.roundRect(100, 206, 26, 18, 4); x.fill();
+  return c.toDataURL("image/png");
+}
+
+D = await claude.use("desktop");
+if (!D?.fs) {
+  const s = await D?.install?.state().catch(() => "unavailable");
+  if (s === "available") gate("Snippmaster er en app for Mac og PC. Installer den for å bruke den.", "Installer som app", () => D.install.request().catch(() => {}));
+  else if (s === "installed") gate("Snippmaster er allerede installert på denne maskinen. Åpne den fra Dock, eller fra Applications > Claude Apps i Finder.");
+  else gate(`Denne siden virker bare som app. Åpne den i Claude-appen på Mac eller PC og velg Install as app i menyen øverst i panelet. (Status: ${s || "ukjent"})`);
+} else {
+  D.app.dock.setIcon(drawIcon()).catch(() => {});
+  D.window.setOptions({ titleBarStyle: "hiddenInset", dragHeight: 34, width: 1280, height: 900, minWidth: 900, minHeight: 640 }).catch(() => {});
+  const plat = await D.os.platform();
+  WIN = plat === "win32";
+  if (plat !== "darwin" && !WIN) gate("Snippmaster virker på macOS og Windows.");
+  else {
+    const p = await D.permissions.state();
+    if (p["full-access"] === "granted") await boot();
+    else gate("Snippmaster trenger tilgang til å kjøre ffmpeg og Whisper lokalt, og til å lese og lagre videofiler.", "Gi tilgang", async () => {
+      const r = await D.permissions.request(["full-access", "notifications"]).catch(() => null);
+      if (r?.["full-access"] === "granted") await boot();
+      else gate("Uten full tilgang kan ikke Snippmaster lese videoen eller kjøre transkripsjonen.", "Åpne tillatelser", () => D.permissions.manage().catch(() => {}));
+    });
+  }
+}
+}
+</script>
+</body>
+</html>
