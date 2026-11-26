@@ -1,7 +1,10 @@
 name: Bygg Snippmaster
 
+# Ny release lages automatisk når versjonen i package.json endres på main.
+# En tag v* eller manuell kjøring bygger også.
 on:
   push:
+    branches: [main]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -9,7 +12,30 @@ permissions:
   contents: write
 
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      release: ${{ steps.v.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          TAG="v$(node -p "require('./package.json').version")"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null; then
+            echo "Versjon $TAG er allerede utgitt. Bygger uten ny release."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Ny versjon $TAG. Lager release etter bygget."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
   mac:
+    needs: version
+    if: needs.version.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,6 +65,8 @@ jobs:
           path: dist/*.dmg
 
   win:
+    needs: version
+    if: needs.version.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,8 +83,8 @@ jobs:
           path: dist/*.exe
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: [mac, win]
+    needs: [version, mac, win]
+    if: needs.version.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -65,6 +93,8 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          target_commitish: ${{ github.sha }}
           files: out/*
           draft: false
           prerelease: true

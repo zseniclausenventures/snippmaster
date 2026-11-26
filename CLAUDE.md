@@ -9,6 +9,13 @@
 - Modeller: Mac MLX (aalst/nb-whisper-large-mlx, mlx-community/whisper-large-v3[-turbo]); Windows faster-whisper på CUDA (NB-Whisper konverteres til CT2 ved første bruk). Talere: pyannote/speaker-diarization-community-1.
 - ffmpeg: systemets, ellers static-ffmpeg (pip). uv installeres i `~/.klippverk/bin` med Astrals installasjonsskript.
 
+- Jobber slettes med Slett-knappen i jobbvisningen (to klikk). Bare `jobs/<id>/` slettes; resultatmappen beholdes. Jobber som transkriberer kan ikke slettes.
+- Windows-transkribering sender lyden som numpy-array til faster-whisper (ikke filsti), for å unngå PyAV-API-endringer.
+
+## Utgivelse
+- Øk `version` i package.json og push til main. GitHub Actions bygger Mac (signert og notarisert) og Windows, og lager release `v<versjon>` automatisk.
+- Installasjon på Windows: `irm https://raw.githubusercontent.com/zseniclausenventures/snippmaster/main/scripts/install-windows.ps1 | iex`
+
 ## Konvensjoner
 - Norsk bokmål i grensesnitt og kommentarer. Ingen emojier.
 - Bakgrunnsjobber må overleve at appen lukkes. Ikke bruk childProcess.spawn for lange jobber.

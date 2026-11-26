@@ -182,6 +182,7 @@ kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radi
       <button id="copyBtn" hidden>Kopier tekst</button>
       <button id="finderBtn" hidden>Vis original</button>
       <button id="outBtn" hidden>Resultatmappe</button>
+      <button id="delBtn" hidden title="Sletter jobben fra listen. Klipp og tekstfiler i resultatmappen beholdes.">Slett</button>
     </div>
     <div class="body" id="body"></div>
     <div class="clipbar" id="clipbar" hidden>
@@ -1059,7 +1060,7 @@ function renderSettings() {
   stopPlayer();
   cur = null; tr = null; renderLib();
   $("title").textContent = "Innstillinger";
-  ["search", "copyBtn", "finderBtn", "outBtn"].forEach((id) => ($(id).hidden = true));
+  ["search", "copyBtn", "finderBtn", "outBtn", "delBtn"].forEach((id) => ($(id).hidden = true));
   $("clipbar").hidden = true;
   $("body").innerHTML = `
     <div style="max-width:720px;margin:12px auto">
@@ -1207,7 +1208,7 @@ function renderNew(msg) {
   stopPlayer();
   cur = null; tr = null; renderLib();
   $("title").textContent = "Ny video";
-  ["search", "copyBtn", "finderBtn", "outBtn"].forEach((id) => ($(id).hidden = true));
+  ["search", "copyBtn", "finderBtn", "outBtn", "delBtn"].forEach((id) => ($(id).hidden = true));
   $("clipbar").hidden = true;
   $("body").innerHTML = `
     <div class="drop" id="drop">
@@ -1352,6 +1353,64 @@ async function transcribeExisting(j) {
 }
 
 /* ---------- åpne en jobb ---------- */
+/* ---------- slett jobb: to klikk, beholder resultatmappen ---------- */
+let delTimer = null;
+function armDelete(j) {
+  const b = $("delBtn");
+  clearTimeout(delTimer);
+  b.hidden = false;
+  b.className = "";
+  b.textContent = "Slett";
+  b.disabled = false;
+  b.onclick = async () => {
+    if (b.dataset.armed !== j.id) {
+      b.dataset.armed = j.id;
+      b.className = "hot";
+      b.textContent = "Bekreft sletting";
+      delTimer = setTimeout(() => { delete b.dataset.armed; b.className = ""; b.textContent = "Slett"; }, 4000);
+      return;
+    }
+    clearTimeout(delTimer);
+    delete b.dataset.armed;
+    await deleteJob(j);
+  };
+}
+async function deleteJob(j) {
+  const b = $("delBtn");
+  const dir = J(BASE, "jobs", j.id);
+  const st = await readJSON(J(dir, "status.json"), {});
+  if (!st.done && st.stage !== "error" && !st.videoOnly && (await running("transcribe"))) {
+    b.className = ""; b.textContent = "Slett";
+    alertBox("Jobben transkriberer fortsatt. Vent til den er ferdig eller har feilet, og slett den da.");
+    return;
+  }
+  b.disabled = true;
+  b.textContent = "Sletter ...";
+  clearInterval(poll);
+  stopPlayer();
+  try {
+    await D.fs.rm(dir, { recursive: true, force: true });
+  } catch {
+    await sh(WIN ? `rmdir /s /q "${dir}"` : `/bin/rm -rf ${q(dir)}`);
+  }
+  if (await D.fs.exists(dir).catch(() => false)) {
+    b.disabled = false; b.textContent = "Slett";
+    alertBox("Klarte ikke å slette jobben. Lukk Snippmaster og prøv igjen.");
+    return;
+  }
+  cur = null;
+  await loadJobs();
+  renderNew();
+}
+function alertBox(msg) {
+  const el = document.createElement("p");
+  el.className = "err";
+  el.style.cssText = "margin:12px auto;max-width:620px;color:var(--hot)";
+  el.textContent = msg;
+  $("body").prepend(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
 async function openJob(id) {
   clearInterval(poll);
   stopPlayer();
@@ -1363,6 +1422,7 @@ async function openJob(id) {
   $("finderBtn").hidden = false;
   $("outBtn").hidden = false;
   $("outBtn").onclick = () => D.shell.openPath(j.outDir || J(settings.outDir, stemOf(j.video))).catch(() => {});
+  armDelete(j);
   const st = await readJSON(`${BASE}/jobs/${id}/status.json`, {});
   if (st.done) return showTranscript(j);
   showProgress(j);
