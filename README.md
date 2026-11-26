@@ -48,3 +48,13 @@ Windows bygges usignert til Microsoft Artifact Signing legges til.
 ## Lisens
 
 MIT. Se [LICENSE](LICENSE).
+
+## Installer på Windows
+
+Åpne PowerShell (ikke administrator) og kjør:
+
+```powershell
+irm https://raw.githubusercontent.com/zseniclausenventures/snippmaster/main/scripts/install-windows.ps1 | iex
+```
+
+Samme kommando oppdaterer til nyeste versjon.
