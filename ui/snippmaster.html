@@ -105,6 +105,19 @@ a{color:var(--hot)}
 .setrow{display:grid;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
 .setrow .p{font:13px/1.4 "IBM Plex Mono",monospace;overflow-wrap:anywhere}
 .setrow .btns{display:flex;gap:8px;flex-wrap:wrap}
+.help{max-width:760px;margin:8px auto 40px;line-height:1.55}
+.help h3{margin:28px 0 8px;font-size:17px}
+.help h3:first-child{margin-top:4px}
+.help ol,.help ul{padding-left:22px;margin:6px 0}
+.help li{margin:4px 0}
+.help table{border-collapse:collapse;margin:8px 0;width:100%}
+.help td,.help th{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
+.help code,.help pre{font:13px/1.5 "IBM Plex Mono",monospace;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.help code{padding:1px 5px}
+.help pre{padding:10px 12px;white-space:pre-wrap}
+.help nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.help nav button{min-height:32px;padding:4px 12px}
+.help a{color:var(--hot)}
 .step.act .dot{background:var(--hot);animation:pulse 1.4s ease-in-out infinite}
 .prog .steps{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));display:grid;gap:8px}
 .prog .step{padding:10px 12px}
@@ -173,7 +186,10 @@ kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radi
     <h1>Snippmaster</h1>
     <button id="newBtn" class="pri">Ny video</button>
     <div class="lib" id="lib"></div>
-    <button id="settingsBtn" style="margin-top:auto">Innstillinger</button>
+    <div style="margin-top:auto;display:grid;gap:8px">
+      <button id="helpBtn">Hjelp</button>
+      <button id="settingsBtn">Innstillinger</button>
+    </div>
   </aside>
   <main>
     <div class="top">
@@ -284,6 +300,29 @@ CT2_MODELS = {
     "en": ["large-v3-turbo", "large-v3"],
     "hu": ["large-v3", "large-v3-turbo"],
 }
+# Alle andre språk Whisper kan: flerspråklig large-v3, med turbo som reserve.
+ANY_MLX = ["mlx-community/whisper-large-v3-mlx", "mlx-community/whisper-large-v3-turbo"]
+ANY_CT2 = ["large-v3", "large-v3-turbo"]
+
+
+def custom_model(lang):
+    """Egen modell for et språk, lagt inn under Innstillinger (~/.klippverk/models.json)."""
+    try:
+        with open(os.path.join(BASE, "models.json"), encoding="utf-8") as f:
+            m = json.load(f).get(lang)
+        return m.strip() if isinstance(m, str) and m.strip() else None
+    except Exception:
+        return None
+
+
+def mlx_models(lang):
+    c = custom_model(lang)
+    return ([c] if c else []) + MODELS.get(lang, ANY_MLX)
+
+
+def ct2_models(lang):
+    c = custom_model(lang)
+    return ([c] if c else []) + CT2_MODELS.get(lang, ANY_CT2)
 NB_REPO = "NbAiLab/nb-whisper-large"
 # Løfter svak tale: fjerner rumling, jevner ut nivået dynamisk (opptil +40 dB) og hindrer klipping.
 BOOST_AF = "highpass=f=70,dynaudnorm=f=200:g=11:p=0.9:m=40,alimiter=limit=0.95"
@@ -455,7 +494,7 @@ def transcribe_mlx(wav, lang, st, duration):
     import mlx_whisper
     res, used, last = None, None, None
     real = sys.stdout
-    for model in MODELS.get(lang, MODELS["en"]):
+    for model in mlx_models(lang):
         try:
             print("Bruker modell:", model, flush=True)
             sys.stdout = ProgressOut(real, st, duration)
@@ -481,27 +520,49 @@ def transcribe_mlx(wav, lang, st, duration):
     return words, used
 
 
-def nb_ct2_dir(st):
-    """Konverterer NB-Whisper til CTranslate2-format én gang."""
-    out = os.path.join(BASE, "models", "nb-whisper-large-ct2")
+def convert_ct2(repo, slug, st):
+    """Konverterer en Whisper-modell i transformers-format til CTranslate2 én gang."""
+    out = os.path.join(BASE, "models", slug + "-ct2")
     if os.path.exists(os.path.join(out, "model.bin")):
         return out
     st.set(stage="prepare", progress=None)
-    print("Konverterer NB-Whisper til faster-whisper-format (én gang) ...", flush=True)
+    print("Konverterer %s til faster-whisper-format (én gang) ..." % repo, flush=True)
     from ctranslate2.converters import TransformersConverter
     tmp = out + ".tmp"
     shutil.rmtree(tmp, ignore_errors=True)
     os.makedirs(os.path.dirname(out), exist_ok=True)
     try:
-        conv = TransformersConverter(NB_REPO, copy_files=["tokenizer.json", "preprocessor_config.json"], load_as_float16=True)
+        conv = TransformersConverter(repo, copy_files=["tokenizer.json", "preprocessor_config.json"], load_as_float16=True)
         conv.convert(tmp, quantization="float16", force=True)
     except Exception as e:
         print("Kopiering av tokenizer feilet, prøver uten:", e, file=sys.stderr, flush=True)
         shutil.rmtree(tmp, ignore_errors=True)
-        TransformersConverter(NB_REPO, load_as_float16=True).convert(tmp, quantization="float16", force=True)
+        TransformersConverter(repo, load_as_float16=True).convert(tmp, quantization="float16", force=True)
     shutil.rmtree(out, ignore_errors=True)
     os.replace(tmp, out)
     return out
+
+
+def nb_ct2_dir(st):
+    return convert_ct2(NB_REPO, "nb-whisper-large", st)
+
+
+def ct2_path(name, st):
+    """Innebygde navn (large-v3) brukes direkte. Hugging Face-repo med model.bin lastes rett ned,
+    andre Whisper-repo konverteres én gang."""
+    if name == "nb-whisper-large":
+        return nb_ct2_dir(st)
+    if "/" not in name or os.path.isdir(name):
+        return name
+    try:
+        from huggingface_hub import list_repo_files
+        files = list_repo_files(name)
+    except Exception as e:
+        print("Fant ikke modellen %s på Hugging Face: %s" % (name, e), file=sys.stderr, flush=True)
+        raise
+    if "model.bin" in files:
+        return name
+    return convert_ct2(name, re.sub(r"[^A-Za-z0-9._-]+", "_", name), st)
 
 
 def transcribe_ct2(wav, lang, st, duration):
@@ -517,10 +578,10 @@ def transcribe_ct2(wav, lang, st, duration):
         audio = audio.mean(axis=1)
     audio = np.ascontiguousarray(audio, dtype=np.float32)
     last = None
-    for name in CT2_MODELS.get(lang, CT2_MODELS["en"]):
+    for name in ct2_models(lang):
         for dev, ct in devices:
             try:
-                path = nb_ct2_dir(st) if name == "nb-whisper-large" else name
+                path = ct2_path(name, st)
                 print("Bruker modell:", name, "på", dev, flush=True)
                 st.set(stage="transcribe", progress=0, device=dev)
                 model = WhisperModel(path, device=dev, compute_type=ct)
@@ -875,7 +936,29 @@ const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const q = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
 let PATHS = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-const LANGS = { no: "Norsk", en: "Engelsk", hu: "Ungarsk" };
+const LANGS_TOP = { no: "Norsk", en: "Engelsk", hu: "Ungarsk" };
+// Andre språk Whisper large-v3 kan. Koden er Whisper sin språkkode.
+const LANGS_MORE = {
+  af: "Afrikaans", sq: "Albansk", am: "Amharisk", ar: "Arabisk", hy: "Armensk", az: "Aserbajdsjansk", eu: "Baskisk",
+  be: "Belarusisk", bn: "Bengali", bs: "Bosnisk", bg: "Bulgarsk", da: "Dansk", et: "Estisk", fo: "Færøysk", fi: "Finsk",
+  fr: "Fransk", gl: "Galisisk", ka: "Georgisk", el: "Gresk", gu: "Gujarati", ht: "Haitisk kreol", ha: "Hausa",
+  he: "Hebraisk", hi: "Hindi", id: "Indonesisk", is: "Islandsk", it: "Italiensk", ja: "Japansk", yi: "Jiddisk",
+  yue: "Kantonesisk", kn: "Kannada", kk: "Kasakhisk", ca: "Katalansk", km: "Khmer", zh: "Kinesisk (mandarin)",
+  ko: "Koreansk", hr: "Kroatisk", la: "Latin", lv: "Latvisk", lt: "Litauisk", lb: "Luxemburgsk", mk: "Makedonsk",
+  mg: "Malagassisk", ms: "Malayisk", ml: "Malayalam", mt: "Maltesisk", mi: "Maori", mr: "Marathi", mn: "Mongolsk",
+  my: "Burmesisk", nl: "Nederlandsk", ne: "Nepali", nn: "Nynorsk", ps: "Pashto", fa: "Persisk", pl: "Polsk",
+  pt: "Portugisisk", pa: "Punjabi", ro: "Rumensk", ru: "Russisk", sa: "Sanskrit", sr: "Serbisk", sn: "Shona",
+  sd: "Sindhi", si: "Singalesisk", sk: "Slovakisk", sl: "Slovensk", so: "Somali", es: "Spansk", sw: "Swahili",
+  sv: "Svensk", tg: "Tadsjikisk", tl: "Tagalog", ta: "Tamil", tt: "Tatarisk", te: "Telugu", th: "Thai",
+  bo: "Tibetansk", cs: "Tsjekkisk", tr: "Tyrkisk", tk: "Turkmensk", de: "Tysk", uk: "Ukrainsk", ur: "Urdu",
+  uz: "Usbekisk", vi: "Vietnamesisk", cy: "Walisisk", yo: "Joruba",
+};
+const LANGS = { ...LANGS_TOP, ...LANGS_MORE };
+function langOptions(selected) {
+  const opt = ([k, v]) => `<option value="${k}" ${k === selected ? "selected" : ""}>${esc(v)}${settings.models?.[k] ? " (egen modell)" : ""}</option>`;
+  const more = Object.entries(LANGS_MORE).sort((a, b) => a[1].localeCompare(b[1], "nb"));
+  return `<optgroup label="Mest brukt">${Object.entries(LANGS_TOP).map(opt).join("")}</optgroup><optgroup label="Andre språk">${more.map(opt).join("")}</optgroup>`;
+}
 const COLORS = ["#ff4d2e", "#2f7dd1", "#2f9d63", "#b25bd6", "#d49a1d", "#1aa3a3", "#c8467f", "#6b7a8f"];
 const STAGES = { prepare: "Forbereder norsk modell (én gang, noen minutter)", audio: "Henter ut lyd", transcribe: "Transkriberer", diarize: "Skiller talere", write: "Lagrer", done: "Ferdig", error: "Feil" };
 
@@ -1105,12 +1188,128 @@ function renderSettings() {
         <div class="btns"><button data-set="outDir">Endre mappe</button><button data-open="${esc(settings.outDir)}">Åpne i ${WIN ? "Utforsker" : "Finder"}</button></div>
       </div>
       <p class="muted">Resultatet for en video havner i <span class="mono">${esc(J(settings.outDir, "videonavn"))}</span>.</p>
+      <div class="setrow">
+        <b>Egne språkmodeller</b>
+        <span class="muted">Valgfritt. Skriv én linje per språk: språkkode = Hugging Face-modell. Modellen prøves først, og standardmodellen brukes hvis den feiler. Se <a href="#" id="helpModels">Hjelp</a> for hvor du finner modeller.</span>
+        <textarea id="modelsIn" rows="3" spellcheck="false" placeholder="${WIN ? "sv = KBLab/kb-whisper-large" : "de = mlx-community/whisper-large-v3-turbo-german-f16"}" style="font:13px/1.5 'IBM Plex Mono',monospace">${esc(Object.entries(settings.models || {}).map(([k, v]) => `${k} = ${v}`).join("\n"))}</textarea>
+        <div class="btns"><button id="modelsSave">Lagre modeller</button><span class="muted" id="modelsMsg"></span></div>
+      </div>
     </div>`;
+  $("helpModels").onclick = (e) => { e.preventDefault(); renderHelp("languages"); };
+  $("modelsSave").onclick = async () => {
+    const models = {}, bad = [];
+    for (const raw of $("modelsIn").value.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const m = line.match(/^([a-z]{2,3})\s*[=:]\s*([\w.-]+\/[\w.-]+)$/i);
+      if (!m) { bad.push(line); continue; }
+      const code = m[1].toLowerCase();
+      if (!LANGS[code]) { bad.push(line + " (ukjent språkkode)"); continue; }
+      models[code] = m[2];
+    }
+    if (bad.length) { $("modelsMsg").textContent = "Forstod ikke: " + bad.join("; "); return; }
+    settings.models = models;
+    await saveSettings();
+    await writeJSON(J(BASE, "models.json"), models);
+    $("modelsMsg").textContent = Object.keys(models).length ? `Lagret ${Object.keys(models).length} modell(er).` : "Ingen egne modeller. Standardmodellene brukes.";
+  };
   $("sameIn").onchange = async (e) => {
     settings.same = e.target.checked;
     if (settings.same) settings.outDir = settings.inDir;
     await saveSettings(); renderSettings();
   };
+}
+
+/* ---------- hjelp ---------- */
+function renderHelp(section) {
+  clearInterval(poll);
+  stopPlayer();
+  cur = null; tr = null; renderLib();
+  $("title").textContent = "Hjelp";
+  ["search", "copyBtn", "finderBtn", "outBtn", "delBtn"].forEach((id) => ($(id).hidden = true));
+  $("clipbar").hidden = true;
+  const fm = WIN ? "Utforsker" : "Finder";
+  const a = (href, txt) => `<a href="${href}" target="_blank" rel="noopener">${txt}</a>`;
+  $("body").innerHTML = `
+  <div class="help">
+    <nav>
+      <button data-h="start">Kom i gang</button><button data-h="clips">Lage klipp</button><button data-h="keys">Hurtigtaster</button>
+      <button data-h="sound">Lyd</button><button data-h="languages">Andre språk</button><button data-h="trouble">Feilsøking</button>
+    </nav>
+
+    <h3 id="h-start">Kom i gang</h3>
+    <ol>
+      <li>Trykk <b>Ny video</b>. Dra en video inn i vinduet, eller trykk <b>Finn video ...</b>. Videoer på opptil 4 GB går fint.</li>
+      <li>Velg språk og trykk <b>Start transkribering</b>. Du ser fremdrift og omtrentlig tid igjen. Du kan lukke appen mens den jobber, og du får varsel når den er ferdig.</li>
+      <li>Vil du bare klippe, trykk <b>Åpne i spilleren uten transkribering</b>. Du kan transkribere senere med <b>Transkriber denne videoen</b>.</li>
+      <li>Når teksten er ferdig, kan du gi talerne navn i feltene over teksten. Bruk <b>Søk i teksten</b> og <b>Kopier tekst</b> etter behov.</li>
+    </ol>
+    <p>Teksten lagres også automatisk i resultatmappen som <code>.txt</code> og som undertekstfil <code>.srt</code>. Trykk <b>Resultatmappe</b> for å åpne den i ${fm}.</p>
+
+    <h3 id="h-clips">Lage klipp</h3>
+    <p>Marker klipp på en av tre måter. Du kan blande dem.</p>
+    <ul>
+      <li><b>I teksten:</b> Klikk på linjen der klippet skal starte. Hold <b>Shift</b> og klikk på linjen der det skal slutte. Trykk <b>Legg til i listen</b>.</li>
+      <li><b>I spilleren:</b> Spill av eller flytt deg på tidslinjen. Trykk <b>Start her</b> og <b>Slutt her</b>, og deretter <b>Legg til klipp</b>.</li>
+      <li><b>Som liste:</b> Skriv tidspunktene i klipplisten, ett klipp per linje. En tittel etter tidspunktene blir med i filnavnet.</li>
+    </ul>
+    <pre>1:24-1:52 Innledning
+3:10-3:45
+1:02:03-1:04:30 Avslutning</pre>
+    <p>Trykk <b>Lag alle klipp</b>. Klippene får navn etter tidspunktet, for eksempel <code>video_01m24s-01m52s.mov</code>. Originalvideoen endres aldri.</p>
+    <table>
+      <tr><td><b>Eksakt kutt</b></td><td>Kutter nøyaktig der du har markert. Bildet blir visuelt likt originalen.</td></tr>
+      <tr><td><b>Tapsfri kopi</b></td><td>Raskest, og bildet endres ikke. Klippet kan starte et lite øyeblikk før markeringen.</td></tr>
+    </table>
+    <p>For å fjerne en jobb: åpne den, trykk <b>Slett</b> og deretter <b>Bekreft sletting</b>. Klipp og tekstfiler i resultatmappen beholdes.</p>
+
+    <h3 id="h-keys">Hurtigtaster i spilleren</h3>
+    <table>
+      <tr><td><b>Mellomrom</b></td><td>Spill av eller pause</td></tr>
+      <tr><td><b>Venstre / høyre pil</b></td><td>2 sekunder tilbake eller frem. Med Shift: 10 sekunder.</td></tr>
+      <tr><td><b>I</b></td><td>Start her</td></tr>
+      <tr><td><b>O</b></td><td>Slutt her</td></tr>
+      <tr><td><b>L</b></td><td>Legg klippet i listen</td></tr>
+    </table>
+
+    <h3 id="h-sound">Lyd: svak tale og støy</h3>
+    <ul>
+      <li><b>Før transkribering</b> jevnes lyden alltid ut, slik at lavmælte stemmer blir tydelige for talegjenkjenningen.</li>
+      <li><b>Løft svak tale</b> gjør det samme i klippene. Slått på som standard.</li>
+      <li><b>Støyfilter</b> fjerner jevn bakgrunnsstøy som sus, vifter og trafikk i klippene. Start med <b>Lett</b>. <b>Kraftig</b> fjerner mer, men kan gjøre stemmen litt metallisk. Plutselige lyder som dører og hosting blir ikke borte.</li>
+    </ul>
+
+    <h3 id="h-languages">Andre språk og egne modeller</h3>
+    <p><b>Over 90 språk virker uten ekstra oppsett.</b> Velg språket under <b>Andre språk</b> i språkvalget. Appen bruker da Whisper large-v3, som kan alle disse språkene. Første gang lastes modellen ned, rundt 3 GB. Nøyaktigheten varierer: store språk som tysk, fransk, spansk og svensk blir svært gode, mens små språk gir flere feil.</p>
+    <p><b>Vil du ha enda bedre resultat på ett språk</b>, kan du bruke en modell som er trent spesielt på det språket, slik Snippmaster bruker NB-Whisper fra Nasjonalbiblioteket for norsk. Slike modeller finner du gratis på Hugging Face:</p>
+    <ol>
+      <li>Åpne ${a("https://huggingface.co/models?pipeline_tag=automatic-speech-recognition&sort=downloads&search=whisper", "Hugging Face, talegjenkjenning")} og søk etter <code>whisper</code> pluss språket, for eksempel <code>whisper swedish</code> eller <code>whisper german</code>.</li>
+      <li>Velg en modell med mange nedlastinger, og helst en «large». Les beskrivelsen og se at den er laget for språket ditt.</li>
+      <li>Kopier modellnavnet øverst på siden, for eksempel <code>KBLab/kb-whisper-large</code>.</li>
+      <li>Gå til <b>Innstillinger &gt; Egne språkmodeller</b>, skriv én linje med språkkode og modellnavn, og trykk <b>Lagre modeller</b>:</li>
+    </ol>
+    <pre>sv = KBLab/kb-whisper-large</pre>
+    <p>Neste gang du transkriberer på det språket, prøves din modell først. Virker den ikke, bruker appen standardmodellen, og loggen viser hvorfor.</p>
+    <p><b>Hvilket format modellen må ha</b> avhenger av maskinen:</p>
+    <table>
+      <tr><th>Maskin</th><th>Format</th><th>Slik kjenner du den igjen</th></tr>
+      <tr><td>Windows</td><td>faster-whisper (CTranslate2), eller vanlig Whisper (transformers)</td><td>Navn med <code>faster-whisper</code> eller <code>ct2</code> brukes direkte. Vanlige Whisper-modeller gjøres om automatisk første gang, og det tar noen minutter.</td></tr>
+      <tr><td>Mac</td><td>MLX</td><td>Søk etter <code>mlx whisper</code> pluss språket. Modellene ligger ofte under ${a("https://huggingface.co/mlx-community", "mlx-community")}, for eksempel <code>mlx-community/whisper-large-v3-turbo-german-f16</code>.</td></tr>
+    </table>
+    <p>Språkkoden er den korte koden Whisper bruker, for eksempel <code>sv</code> (svensk), <code>de</code> (tysk), <code>fr</code> (fransk), <code>es</code> (spansk), <code>pl</code> (polsk) og <code>ar</code> (arabisk). ${a("https://github.com/openai/whisper/blob/main/whisper/tokenizer.py", "Hele listen over språkkoder")} finner du hos OpenAI. Noen modeller krever at du godtar vilkår på Hugging Face først. Da må det gjøres med den samme kontoen som nøkkelen din tilhører.</p>
+
+    <h3 id="h-trouble">Feilsøking</h3>
+    <ul>
+      <li><b>Alle linjene har samme taler:</b> Hugging Face-nøkkelen mangler, eller vilkårene for ${a("https://huggingface.co/pyannote/speaker-diarization-community-1", "pyannote/speaker-diarization-community-1")} er ikke godtatt.</li>
+      <li><b>En jobb feilet:</b> Les den røde meldingen og loggen under. Trykk <b>Prøv igjen</b>, eller slett jobben og start på nytt.</li>
+      <li><b>Transkriberingen er treg${WIN ? "" : " første gang"}:</b> ${WIN ? `Oppdater NVIDIA-driveren med ${a("https://www.nvidia.com/en-us/software/nvidia-app/", "NVIDIA-appen")}. Uten NVIDIA-skjermkort går det på prosessoren og tar lengre tid.` : "Første gang lastes og forberedes modellen. Senere går det mye raskere."}</li>
+      <li><b>Noe annet:</b> Lag en sak på ${a("https://github.com/zseniclausenventures/snippmaster/issues", "GitHub")} med skjermbilde av feilmeldingen.</li>
+    </ul>
+    <p class="muted">Alt skjer på maskinen din. Lyd og video lastes aldri opp. ${a("https://github.com/zseniclausenventures/snippmaster", "Snippmaster på GitHub")} · MIT-lisens</p>
+  </div>`;
+  $("body").querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => $("h-" + b.dataset.h).scrollIntoView({ behavior: "smooth", block: "start" })));
+  if (section) setTimeout(() => $("h-" + section)?.scrollIntoView({ block: "start" }), 0);
+  $("body").scrollTop = 0;
 }
 
 /* ---------- innebygd filutforsker ---------- */
@@ -1241,7 +1440,7 @@ function renderNew(msg) {
       <p>Opptil 4 GB. Eller velg en video fra arbeidsmappen under, eller let deg frem til den.</p>
       <div class="form"><button id="browseBtn">Finn video ...</button><input type="text" id="pathIn" placeholder="eller lim inn filsti til videoen" value="${esc(pending?.path || "")}"></div>
       <div class="form">
-        <select id="langIn">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+        <select id="langIn">${langOptions(settings.lastLang || "no")}</select>
         <select id="spkIn"><option value="0">Antall talere: finn selv</option>${[1, 2, 3, 4, 5, 6, 8].map((n) => `<option value="${n}">${n} ${n === 1 ? "taler" : "talere"}</option>`).join("")}</select>
         <button class="pri" id="startBtn">Start transkribering</button>
         <button id="playOnlyBtn">Åpne i spilleren uten transkribering</button>
@@ -1349,6 +1548,7 @@ async function startTranscribe(videoOnly = false) {
   }
   await writeJSON(`${dir}/status.json`, { stage: "audio", progress: 0 });
   await D.fs.writeFile(WORKER, $("workerPy").textContent.replace(/^\n/, ""), "utf8");
+  settings.lastLang = lang; saveSettings();
   const args = [PY, WORKER, "transcribe", "--video", src, "--job", dir, "--lang", lang];
   if (speakers) args.push("--speakers", String(speakers));
   if (skipDiar) args.push("--no-diarize");
@@ -1364,6 +1564,7 @@ async function transcribeExisting(j) {
   if (await running("transcribe")) { if (err) err.textContent = "En annen video transkriberes allerede. Prøv igjen når den er ferdig."; return; }
   const dir = `${BASE}/jobs/${j.id}`;
   const lang = $("langIn2").value, speakers = Number($("spkIn2").value);
+  settings.lastLang = lang; saveSettings();
   const meta = { ...(await readJSON(`${dir}/meta.json`, {})), lang, speakers, videoOnly: false, exported: false };
   await writeJSON(`${dir}/meta.json`, meta);
   await writeJSON(`${dir}/status.json`, { stage: "audio", progress: 0 });
@@ -1554,7 +1755,7 @@ function renderTranscript() {
           <b>Ikke transkribert</b>
           <span class="muted">Bruk spilleren og tidslinjen til å markere klipp med Start her og Slutt her. Vil du ha teksten også, kan du transkribere når som helst.</span>
           <div class="btns">
-            <select id="langIn2">${Object.entries(LANGS).map(([k, v]) => `<option value="${k}" ${j?.lang === k ? "selected" : ""}>${v}</option>`).join("")}</select>
+            <select id="langIn2">${langOptions(j?.lang || settings.lastLang || "no")}</select>
             <select id="spkIn2"><option value="0">Antall talere: finn selv</option>${[1, 2, 3, 4, 5, 6, 8].map((n) => `<option value="${n}">${n} ${n === 1 ? "taler" : "talere"}</option>`).join("")}</select>
             <button class="pri" id="trNow">Transkriber denne videoen</button>
           </div>
@@ -1900,6 +2101,7 @@ $("checkBtn").onclick = () => install(true);
 $("skipBtn").onclick = () => { skipDiar = true; enterApp(); };
 $("newBtn").onclick = () => { clearInterval(poll); renderNew(); };
 $("settingsBtn").onclick = renderSettings;
+$("helpBtn").onclick = () => renderHelp();
 document.addEventListener("click", (e) => {
   const o = e.target.closest("[data-open]");
   if (o) { D.fs.mkdir(o.dataset.open, { recursive: true }).catch(() => {}).then(() => D.shell.openPath(o.dataset.open).catch(() => D.shell.showItemInFolder(o.dataset.open).catch(() => {}))); return; }

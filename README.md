@@ -6,7 +6,7 @@ Appen finnes for Mac med Apple Silicon (M1 og nyere) og for Windows-PC. Den er l
 
 ## Hva appen gjør
 
-- **Transkriberer video** på norsk, engelsk og ungarsk, med tidsstempel høyst fire sekunder fra hverandre.
+- **Transkriberer video** på norsk, engelsk og ungarsk, og på over 90 andre språk, med tidsstempel høyst fire sekunder fra hverandre.
 - **Skiller talere**, slik at du ser hvem som sier hva. Du kan gi talerne navn.
 - **Lager klipp** fra tidspunktene du velger, i samme kvalitet som originalen. Klippene får navn etter tidspunktet, for eksempel `intervju_01m24s-01m52s.mov`.
 - **Løfter svak tale**, slik at lavmælte stemmer blir tydelige, både i transkriberingen og i klippene.
@@ -18,6 +18,7 @@ Appen finnes for Mac med Apple Silicon (M1 og nyere) og for Windows-PC. Den er l
 | Norsk | NB-Whisper large fra Nasjonalbiblioteket |
 | Engelsk | Whisper large-v3-turbo |
 | Ungarsk | Whisper large-v3 |
+| Over 90 andre språk | Whisper large-v3, eller en egen modell du velger (se under) |
 
 ## Installasjon
 
@@ -111,6 +112,27 @@ Klippene havner i resultatmappen. Trykk **Resultatmappe** for å åpne den. Orig
 ### 6. Rydd
 
 Åpne en jobb og trykk **Slett**, og deretter **Bekreft sletting**. Jobben forsvinner fra listen, men klipp og tekstfiler i resultatmappen beholdes.
+
+### Andre språk og egne modeller
+
+Velg språket under **Andre språk** i språkvalget. Over 90 språk virker uten ekstra oppsett, med Whisper large-v3. Første gang lastes modellen ned, rundt 3 GB. Store språk som tysk, fransk, spansk og svensk blir svært gode, mens små språk gir flere feil.
+
+For enda bedre resultat på ett språk kan du bruke en modell som er trent spesielt på det språket, slik appen bruker NB-Whisper for norsk:
+
+1. Søk på [Hugging Face](https://huggingface.co/models?pipeline_tag=automatic-speech-recognition&sort=downloads&search=whisper) etter `whisper` pluss språket, for eksempel `whisper swedish`. Velg en modell med mange nedlastinger, helst en «large».
+2. Kopier modellnavnet, for eksempel `KBLab/kb-whisper-large`.
+3. Gå til **Innstillinger > Egne språkmodeller**, skriv `sv = KBLab/kb-whisper-large` (språkkode = modell) og trykk **Lagre modeller**.
+
+Din modell prøves først. Virker den ikke, brukes standardmodellen.
+
+| Maskin | Format | Tips |
+|---|---|---|
+| Windows | faster-whisper (CTranslate2) eller vanlig Whisper (transformers) | Vanlige Whisper-modeller gjøres om automatisk første gang. |
+| Mac | MLX | Søk etter `mlx whisper` pluss språket, ofte under [mlx-community](https://huggingface.co/mlx-community). |
+
+Språkkoden er Whisper sin korte kode, for eksempel `sv`, `de`, `fr`, `es`, `pl` og `ar`. [Hele listen](https://github.com/openai/whisper/blob/main/whisper/tokenizer.py) finnes hos OpenAI.
+
+Den samme veiledningen finnes i appen under **Hjelp**.
 
 ### Innstillinger
 
