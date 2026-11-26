@@ -226,6 +226,15 @@ import argparse, glob, json, os, re, shutil, subprocess, sys, time
 
 IS_WIN = sys.platform == "win32"
 BASE = os.path.join(os.path.expanduser("~"), ".klippverk")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+if not os.environ.get("HF_TOKEN"):
+    try:
+        with open(os.path.join(BASE, "hf_token"), encoding="utf-8") as _f:
+            _t = _f.read().strip()
+        if _t:
+            os.environ["HF_TOKEN"] = _t
+    except Exception:
+        pass
 if IS_WIN:
     _links = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "WinGet", "Links")
     os.environ["PATH"] = _links + os.pathsep + os.environ.get("PATH", "")
@@ -476,6 +485,13 @@ def transcribe_ct2(wav, lang, st, duration):
     from faster_whisper import WhisperModel
     cuda = ctranslate2.get_cuda_device_count() > 0
     devices = ([("cuda", "float16")] if cuda else []) + [("cpu", "int8")]
+    import numpy as np
+    import soundfile as sf
+    # Lyden sendes som tall i minnet, ikke som filsti. Da slipper vi PyAV, som har endret API.
+    audio, sr = sf.read(wav, dtype="float32", always_2d=False)
+    if getattr(audio, "ndim", 1) > 1:
+        audio = audio.mean(axis=1)
+    audio = np.ascontiguousarray(audio, dtype=np.float32)
     last = None
     for name in CT2_MODELS.get(lang, CT2_MODELS["en"]):
         for dev, ct in devices:
@@ -484,7 +500,7 @@ def transcribe_ct2(wav, lang, st, duration):
                 print("Bruker modell:", name, "på", dev, flush=True)
                 st.set(stage="transcribe", progress=0, device=dev)
                 model = WhisperModel(path, device=dev, compute_type=ct)
-                segs, _info = model.transcribe(wav, language=lang, word_timestamps=True, beam_size=5,
+                segs, _info = model.transcribe(audio, language=lang, word_timestamps=True, beam_size=5,
                                                condition_on_previous_text=False, vad_filter=True)
                 words, tick = [], 0
                 for seg in segs:
