@@ -44,3 +44,7 @@ Mac signeres og notariseres når disse secrets finnes:
 | `APPLE_TEAM_ID` | Team ID fra developer.apple.com |
 
 Windows bygges usignert til Microsoft Artifact Signing legges til.
+
+## Lisens
+
+MIT. Se [LICENSE](LICENSE).

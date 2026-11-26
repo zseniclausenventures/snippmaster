@@ -255,7 +255,6 @@ def _ff_tools():
 
 
 FFMPEG, FFPROBE = _ff_tools()
-DOPPLER = shutil.which("doppler") or "/opt/homebrew/bin/doppler"
 DIAR_MODEL = "pyannote/speaker-diarization-community-1"
 MODELS = {
     "no": ["aalst/nb-whisper-large-mlx", "Tibber-se/nb-whisper-large-mlx", "mlx-community/whisper-large-v3-mlx"],
@@ -310,14 +309,6 @@ def hf_token():
             return tok
     except Exception:
         pass
-    try:
-        r = subprocess.run([DOPPLER, "secrets", "get", "HF_TOKEN", "--plain", "--project", "cos", "--config", "prd"],
-                           capture_output=True, text=True, timeout=30)
-        if r.returncode == 0 and r.stdout.strip():
-            return r.stdout.strip()
-        print("Doppler:", r.stderr.strip(), file=sys.stderr)
-    except Exception as e:
-        print("Doppler feilet:", e, file=sys.stderr)
     return None
 
 

@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "description": "Lokal transkribering med talerskille og videoklipping for Mac og Windows",
   "author": "OhJoy Ventures AS (Ezerkoesz Ventures)",
-  "license": "UNLICENSED",
-  "private": true,
+  "license": "MIT",
+  "repository": "github:zseniclausenventures/snippmaster",
   "main": "src/main.js",
   "scripts": {
     "ui": "node scripts/build-ui.mjs",

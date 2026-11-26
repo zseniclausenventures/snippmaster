@@ -5,7 +5,7 @@
 - Grensesnitt: `ui/snippmaster.html` er eneste kilde. `scripts/build-ui.mjs` lager `renderer/index.html` med en liten shim (`window.claude.use("desktop")`). `renderer/` er generert og ignoreres i git.
 - Samme HTML publiseres også som Claude-artefakt (slug 72de055f-6d87-43dd-90ea-f39b29435641). Hold dem like.
 - Python-worker (innebygd i HTML som `<script type="text/plain" id="workerPy">`) skrives til `~/.klippverk/worker.py` og kjøres som bakgrunnsjobb: launchd på Mac, Oppgaveplanlegger + `conhost --headless` på Windows. Kommandoer: `check`, `transcribe`, `batch` (klippkø), `proxy` (forhåndsvisning i segmenter).
-- Data: `~/.klippverk/` (venv, bin, jobs/<id>/, settings.json, hf_token). Arbeidsmappe: `~/Movies/Snippmaster` eller `%USERPROFILE%\Videos\Snippmaster`.
+- Data: `~/.klippverk/` (venv, bin, jobs/<id>/, settings.json, hf_token). Hugging Face-nøkkel leses fra env `HF_TOKEN` eller `~/.klippverk/hf_token`, aldri fra repoet. Arbeidsmappe: `~/Movies/Snippmaster` eller `%USERPROFILE%\Videos\Snippmaster`.
 - Modeller: Mac MLX (aalst/nb-whisper-large-mlx, mlx-community/whisper-large-v3[-turbo]); Windows faster-whisper på CUDA (NB-Whisper konverteres til CT2 ved første bruk). Talere: pyannote/speaker-diarization-community-1.
 - ffmpeg: systemets, ellers static-ffmpeg (pip). uv installeres i `~/.klippverk/bin` med Astrals installasjonsskript.
 
@@ -16,3 +16,7 @@
 
 ## Vedlikehold
 - Update CLAUDE.md if data models, new features, or architecture changed.
+
+## Offentlig repo
+
+Repoet er offentlig med MIT-lisens. Ingen nøkler, passord, sertifikater eller personlige stier skal inn i koden. Signeringshemmeligheter ligger kun i GitHub Secrets.
