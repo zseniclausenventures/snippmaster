@@ -60,7 +60,7 @@ function createWindow() {
 }
 
 /* ---------- filer ---------- */
-ipcMain.handle("fs", async (_e, op, a = [], opts = {}) => {
+async function fsOp(op, a = [], opts = {}) {
   const p = expand(a[0]);
   switch (op) {
     case "exists":
@@ -99,6 +99,15 @@ ipcMain.handle("fs", async (_e, op, a = [], opts = {}) => {
       return fs.realpath(p);
     default:
       throw new Error("EINVAL: ukjent filoperasjon " + op);
+  }
+}
+// Feil sendes tilbake som verdi, ikke som unntak. Ellers skriver Electron hver manglende
+// valgfri fil (ENOENT) til konsollen som «Error occurred in handler», selv om appen håndterer den.
+ipcMain.handle("fs", async (_e, op, a = [], opts = {}) => {
+  try {
+    return { ok: await fsOp(op, a, opts) };
+  } catch (e) {
+    return { err: `${e.code || ""} ${e.message || e}`.trim() };
   }
 });
 

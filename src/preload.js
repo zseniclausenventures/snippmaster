@@ -8,10 +8,13 @@ const f = (op) => (...a) => {
   if (op === "readFile" && typeof a[1] === "string") opts = { encoding: a[1] };
   else if (op === "writeFile" && typeof a[2] === "string") opts = { encoding: a[2] };
   else if ((op === "mkdir" || op === "rm") && last && typeof last === "object") opts = last;
-  return ipcRenderer.invoke("fs", op, a, opts).catch((e) => {
-    // Gi samme feilkoder som Node (ENOENT, EPERM ...) i meldingen.
-    const m = String(e.message || e).match(/\b(E[A-Z]+)\b.*$/);
-    throw new Error(m ? m[0] : String(e.message || e));
+  return ipcRenderer.invoke("fs", op, a, opts).then((r) => {
+    if (r && "err" in r) {
+      // Gi samme feilkoder som Node (ENOENT, EPERM ...) i meldingen.
+      const m = String(r.err).match(/\b(E[A-Z]+)\b.*$/);
+      throw new Error(m ? m[0] : String(r.err));
+    }
+    return r ? r.ok : r;
   });
 };
 

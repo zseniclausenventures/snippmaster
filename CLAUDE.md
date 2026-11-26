@@ -1,7 +1,7 @@
 # CLAUDE.md - Snippmaster
 
 ## Arkitektur
-- Electron-skall: `src/main.js` (IPC for fs, exec, shell, varsler, os-info) og `src/preload.js` (eksponerer `window.snippDesktop`, etterligner Claude-appens desktop-API).
+- Electron-skall: `src/main.js` (IPC for fs, exec, shell, varsler, os-info; fs-feil returneres som `{err}` og kastes på nytt i preload, så manglende valgfrie filer ikke logges som feil) og `src/preload.js` (eksponerer `window.snippDesktop`, etterligner Claude-appens desktop-API).
 - Grensesnitt: `ui/snippmaster.html` er eneste kilde. `scripts/build-ui.mjs` lager `renderer/index.html` med en liten shim (`window.claude.use("desktop")`). `renderer/` er generert og ignoreres i git.
 - Samme HTML publiseres også som Claude-artefakt (slug 72de055f-6d87-43dd-90ea-f39b29435641). Hold dem like.
 - Python-worker (innebygd i HTML som `<script type="text/plain" id="workerPy">`) skrives til `~/.klippverk/worker.py` og kjøres som bakgrunnsjobb: launchd på Mac, Oppgaveplanlegger + `conhost --headless` på Windows. Kommandoer: `check`, `transcribe`, `batch` (klippkø), `proxy` (forhåndsvisning i segmenter).
