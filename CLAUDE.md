@@ -13,9 +13,10 @@
 - Windows-transkribering sender lyden som numpy-array til faster-whisper (ikke filsti), for å unngå PyAV-API-endringer.
 - Klipp: valgfritt støyfilter (Av/Lett/Kraftig, ffmpeg afftdn) og «Løft svak tale» (dynaudnorm). Filterkjede i `clip_audio_filter`: highpass, støyfilter, volumløft, limiter. Støyfilter brukes aldri før transkribering.
 - Språk: `LANGS_TOP` (no/en/hu) og `LANGS_MORE` (88 andre Whisper-koder) i grensesnittet. Ukjente språk bruker `ANY_MLX`/`ANY_CT2` (large-v3). Egne modeller per språk lagres i `settings.models` og `~/.klippverk/models.json`, og prøves først (`custom_model`). Windows: `ct2_path` bruker repo med `model.bin` direkte, ellers `convert_ct2` (TransformersConverter) én gang til `~/.klippverk/models/<slug>-ct2`.
-- Hjelp-side i appen (`renderHelp(section)`), knapp nederst i sidepanelet. Hold den i takt med README.
+- Hjelp er et sidepanel til høyre (`openHelp(section)`/`closeHelp()`, innhold i `helpHtml()`) som kan stå åpent mens appen brukes. Hold innholdet i takt med README.
+- Innstillinger har Tilbake-knapp (`#backBtn`) som går til forrige jobb eller Ny video (`settingsPrev`).
 
-- Personvern: worker setter `PYANNOTE_METRICS_ENABLED=0`, `HF_HUB_DISABLE_TELEMETRY=1` og `DO_NOT_TRACK=1`. Electron har `spellcheck: false` (ellers laster Chromium ordbøker fra Google). Nettbruk kun for nedlasting av verktøy og modeller. Ikke legg til statistikk eller opplasting.
+- Personvern: worker setter `PYANNOTE_METRICS_ENABLED=0`, `HF_HUB_DISABLE_TELEMETRY=1` og `DO_NOT_TRACK=1`. Electron har `spellcheck: false` (ellers laster Chromium ordbøker fra Google). Nettbruk kun for nedlasting av verktøy og modeller. Ikke legg til statistikk, opplasting eller eksterne ressurser (skrifter, CDN). Skrifter er systemskrifter.
 
 ## Utgivelse
 - Øk `version` i package.json og push til main. GitHub Actions bygger Mac (signert og notarisert) og Windows, og lager release `v<versjon>` automatisk.

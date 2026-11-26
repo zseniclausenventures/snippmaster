@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Snippmaster</title>
 <script type="application/json" id="claude-artifacts-manifest">{"permissions": ["full-access", "notifications"]}</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 /*
 VOICE: et rolig redigeringsbord, presist og raskt å lese
@@ -23,8 +21,16 @@ body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "IBM Plex Sans
 .mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 .drag{position:fixed;top:0;left:0;right:0;height:34px;app-region:drag;-webkit-app-region:drag;z-index:5}
 .shell{display:grid;grid-template-columns:260px minmax(0,1fr);height:100vh}
+.shell.help-open{grid-template-columns:260px minmax(0,1fr) minmax(320px,400px)}
+#helpPanel{border-left:1px solid var(--line);display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg)}
+#helpPanel[hidden]{display:none}
+#helpPanel .hhead{padding:40px 16px 10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+#helpPanel .hhead h2{margin:0;flex:1;font:600 18px/1.2 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif}
+#helpBody{flex:1;overflow:auto;padding:0 18px 12px;position:relative}
+#helpBody nav{position:sticky;top:0;background:var(--bg);padding:12px 0 10px;margin:0;z-index:1;border-bottom:1px solid var(--line)}
+#helpBody .help{max-width:none;margin:0 0 30px;font-size:14px}
 aside{border-right:1px solid var(--line);padding:44px 14px 14px;overflow:auto;display:flex;flex-direction:column;gap:10px}
-aside h1{font:600 20px/1.1 "IBM Plex Sans",sans-serif;margin:0 4px 6px}
+aside h1{font:600 20px/1.1 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;margin:0 4px 6px}
 .lib{display:flex;flex-direction:column;gap:4px}
 .item{all:unset;display:block;padding:9px 10px;border-radius:10px;cursor:pointer;app-region:no-drag;-webkit-app-region:no-drag}
 .item:hover{background:var(--panel)}
@@ -33,7 +39,7 @@ aside h1{font:600 20px/1.1 "IBM Plex Sans",sans-serif;margin:0 4px 6px}
 .item span{font-size:12px;color:var(--mute)}
 main{display:flex;flex-direction:column;height:100vh;overflow:hidden}
 .top{padding:40px 24px 10px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-.top h2{margin:0;font:600 18px/1.2 "IBM Plex Sans",sans-serif;flex:1 1 160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.top h2{margin:0;font:600 18px/1.2 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;flex:1 1 160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .body{flex:1;overflow:auto;padding:16px 24px}
 button,select,input{font:inherit;color:inherit;app-region:no-drag;-webkit-app-region:no-drag}
 button{cursor:pointer;border-radius:10px;min-height:40px;padding:6px 14px;border:1px solid var(--line);background:var(--panel);font-weight:500}
@@ -44,7 +50,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 input,select{min-height:40px;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:6px 10px;font-size:15px}
 .drop{border:2px dashed var(--line);border-radius:18px;padding:48px 24px;text-align:center;display:grid;gap:14px;place-items:center;max-width:720px;margin:24px auto}
 .drop.over{border-color:var(--hot);background:var(--sel)}
-.drop .big{font:600 26px/1.15 "IBM Plex Sans",sans-serif;margin:0}
+.drop .big{font:600 26px/1.15 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;margin:0}
 .drop p{margin:0;color:var(--mute)}
 .form{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%}
 .form input[type=text]{flex:1 1 360px}
@@ -54,13 +60,16 @@ input,select{min-height:40px;border:1px solid var(--line);border-radius:10px;bac
 .stage{font-weight:600}
 .muted{color:var(--mute);font-size:13px}
 .err{color:var(--hot);font-size:14px;white-space:pre-wrap}
-pre.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;font:12px/1.45 "IBM Plex Mono",monospace;max-height:260px;overflow:auto;white-space:pre-wrap;user-select:text}
+pre.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;font:12px/1.45 "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;max-height:260px;overflow:auto;white-space:pre-wrap;user-select:text}
 .speakers{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
 .spk{display:flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:99px;padding:3px 6px 3px 10px}
 .spk i{width:10px;height:10px;border-radius:50%;flex:none}
 .spk input{min-height:30px;border:0;background:transparent;width:120px;padding:2px 4px;font-size:14px}
 .lines{display:flex;flex-direction:column}
 .ln{display:grid;grid-template-columns:86px 110px minmax(0,1fr);gap:12px;padding:5px 8px;border-radius:8px;cursor:pointer;user-select:text}
+.ln > :last-child{overflow-wrap:anywhere}
+.shell.help-open .ln{grid-template-columns:52px 84px minmax(0,1fr);gap:8px}
+.shell.help-open .body.split{gap:14px;padding:12px 16px}
 .ln:hover{background:var(--panel)}
 .ln.in{background:var(--sel)}
 .ln.edge{box-shadow:inset 3px 0 0 var(--hot)}
@@ -70,15 +79,15 @@ pre.log{background:var(--panel);border:1px solid var(--line);border-radius:12px;
 .clipbar .clips{max-height:96px;overflow:auto}
 .cliprow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .listlabel{font-size:13px;color:var(--mute)}
-#clipList{font:14px/1.5 "IBM Plex Mono",monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical;min-height:52px;app-region:no-drag;-webkit-app-region:no-drag}
+#clipList{font:14px/1.5 "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px 10px;resize:vertical;min-height:52px;app-region:no-drag;-webkit-app-region:no-drag}
 .clip .bar{flex:0 0 90px;height:6px}
 .clipbar label{font-size:13px;color:var(--mute);display:flex;align-items:center;gap:6px}
-.clipbar input.t{width:108px;font-family:"IBM Plex Mono",monospace}
+.clipbar input.t{width:108px;font-family:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace}
 .clips{display:flex;flex-direction:column;gap:6px;margin-top:4px}
 .clip{display:flex;gap:8px;align-items:center;font-size:13px}
 .clip .mono{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .gate{max-width:640px;margin:80px auto;display:grid;gap:14px;padding:0 24px}
-.gate h2{font:600 26px/1.15 "IBM Plex Sans",sans-serif;margin:0}
+.gate h2{font:600 26px/1.15 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;margin:0}
 .steps{display:grid;gap:10px}
 .step{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .step .dot{width:12px;height:12px;border-radius:50%;background:var(--line);margin-top:6px;flex:none}
@@ -91,7 +100,7 @@ a{color:var(--hot)}
 .sheet{background:var(--bg);border:1px solid var(--line);border-radius:16px;width:min(760px,92vw);max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35)}
 .sheet header{padding:16px 18px 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--line)}
 .sheet header b{flex:1 1 200px;font-size:16px}
-.crumb{font:13px/1.4 "IBM Plex Mono",monospace;color:var(--mute);padding:8px 18px;overflow-wrap:anywhere}
+.crumb{font:13px/1.4 "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--mute);padding:8px 18px;overflow-wrap:anywhere}
 .quick{display:flex;gap:6px;flex-wrap:wrap;padding:0 18px 8px}
 .quick button{min-height:32px;padding:4px 10px;font-size:13px}
 .flist{overflow:auto;padding:4px 10px 10px;flex:1}
@@ -103,7 +112,7 @@ a{color:var(--hot)}
 .vids{max-width:720px;margin:0 auto 24px}
 .vids h3{font-size:14px;margin:0 0 8px;color:var(--mute);font-weight:500}
 .setrow{display:grid;gap:6px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
-.setrow .p{font:13px/1.4 "IBM Plex Mono",monospace;overflow-wrap:anywhere}
+.setrow .p{font:13px/1.4 "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;overflow-wrap:anywhere}
 .setrow .btns{display:flex;gap:8px;flex-wrap:wrap}
 .help{max-width:760px;margin:8px auto 40px;line-height:1.55}
 .help h3{margin:28px 0 8px;font-size:17px}
@@ -112,7 +121,7 @@ a{color:var(--hot)}
 .help li{margin:4px 0}
 .help table{border-collapse:collapse;margin:8px 0;width:100%}
 .help td,.help th{border:1px solid var(--line);padding:6px 10px;text-align:left;vertical-align:top}
-.help code,.help pre{font:13px/1.5 "IBM Plex Mono",monospace;background:var(--panel);border:1px solid var(--line);border-radius:6px}
+.help code,.help pre{font:13px/1.5 "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;background:var(--panel);border:1px solid var(--line);border-radius:6px}
 .help code{padding:1px 5px}
 .help pre{padding:10px 12px;white-space:pre-wrap}
 .help nav{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
@@ -137,17 +146,17 @@ a{color:var(--hot)}
 .vmsg .bar{width:min(320px,80%)}
 .ctrls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
 .ctrls button{min-height:36px;padding:4px 10px;font-size:13px}
-.tc{font:13px "IBM Plex Mono",monospace;margin-left:auto;white-space:nowrap}
+.tc{font:13px "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;margin-left:auto;white-space:nowrap}
 .tl{position:relative;height:50px;border-radius:8px;background:var(--panel);border:1px solid var(--line);cursor:pointer;touch-action:none;overflow:hidden;flex:none}
 .tl .sp{position:absolute;top:6px;height:10px}
 .tl .rg{position:absolute;top:20px;bottom:6px;background:color-mix(in srgb,var(--hot) 30%,transparent);border-left:2px solid var(--hot);border-right:2px solid var(--hot)}
 .tl .sel{position:absolute;top:18px;bottom:2px;background:color-mix(in srgb,var(--ok) 25%,transparent);border-left:2px solid var(--ok);border-right:2px solid var(--ok)}
 .tl .ph{position:absolute;top:0;bottom:0;width:2px;margin-left:-1px;background:var(--ink);pointer-events:none}
-.tl .hov{position:absolute;bottom:3px;transform:translateX(-50%);font:11px "IBM Plex Mono",monospace;background:var(--ink);color:var(--bg);padding:0 5px;border-radius:4px;pointer-events:none;white-space:nowrap}
-.ticks{display:flex;justify-content:space-between;font:11px "IBM Plex Mono",monospace;color:var(--mute);margin-top:-6px}
+.tl .hov{position:absolute;bottom:3px;transform:translateX(-50%);font:11px "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;background:var(--ink);color:var(--bg);padding:0 5px;border-radius:4px;pointer-events:none;white-space:nowrap}
+.ticks{display:flex;justify-content:space-between;font:11px "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:var(--mute);margin-top:-6px}
 .ln.now{background:color-mix(in srgb,var(--ok) 20%,transparent)}
 .keys{font-size:12px;color:var(--mute);line-height:1.9}
-kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin:0 1px}
+kbd{font:11px "IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;border:1px solid var(--line);border-radius:4px;padding:0 4px;margin:0 1px}
 @media(max-width:900px){.body.split{grid-template-columns:1fr;overflow:auto}.pcol,.tcol{overflow:visible}}
 [hidden]{display:none!important}
 @media(max-width:760px){.shell{grid-template-columns:1fr}aside{display:none}.ln{grid-template-columns:70px minmax(0,1fr)}.ln .who{grid-column:2}.ln .tx{grid-column:2}}
@@ -193,6 +202,7 @@ kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radi
   </aside>
   <main>
     <div class="top">
+      <button id="backBtn" hidden>Tilbake</button>
       <h2 id="title">Ny video</h2>
       <input type="search" id="search" placeholder="Søk i teksten" hidden style="width:170px">
       <button id="copyBtn" hidden>Kopier tekst</button>
@@ -232,6 +242,10 @@ kbd{font:11px "IBM Plex Mono",monospace;border:1px solid var(--line);border-radi
       <div class="clips" id="clips"></div>
     </div>
   </main>
+  <section id="helpPanel" hidden aria-label="Hjelp">
+    <div class="hhead"><h2>Hjelp</h2><button id="helpClose" title="Lukk hjelp">Lukk</button></div>
+    <div id="helpBody"></div>
+  </section>
 </div>
 
 <div class="modal" id="browser" hidden>
@@ -1167,10 +1181,15 @@ const saveSettings = () => writeJSON(`${BASE}/settings.json`, settings);
 const stemOf = (p) => baseName(p).replace(/\.[^.]+$/, "");
 const extOf = (p) => { const m = baseName(p).match(/\.[^.]+$/); return m ? m[0] : ".mp4"; };
 
+let onSettings = false, settingsPrev = null;
 function renderSettings() {
+  if (!onSettings) settingsPrev = cur;
+  onSettings = true;
   clearInterval(poll);
   stopPlayer();
   cur = null; tr = null; renderLib();
+  $("backBtn").hidden = false;
+  $("backBtn").onclick = () => { const prev = settingsPrev; settingsPrev = null; if (prev && jobs.some((x) => x.id === prev)) openJob(prev); else renderNew(); };
   $("title").textContent = "Innstillinger";
   ["search", "copyBtn", "finderBtn", "outBtn", "delBtn"].forEach((id) => ($(id).hidden = true));
   $("clipbar").hidden = true;
@@ -1195,11 +1214,11 @@ function renderSettings() {
       <div class="setrow">
         <b>Egne språkmodeller</b>
         <span class="muted">Valgfritt. Skriv én linje per språk: språkkode = Hugging Face-modell. Modellen prøves først, og standardmodellen brukes hvis den feiler. Se <a href="#" id="helpModels">Hjelp</a> for hvor du finner modeller.</span>
-        <textarea id="modelsIn" rows="3" spellcheck="false" placeholder="${WIN ? "sv = KBLab/kb-whisper-large" : "de = mlx-community/whisper-large-v3-turbo-german-f16"}" style="font:13px/1.5 'IBM Plex Mono',monospace">${esc(Object.entries(settings.models || {}).map(([k, v]) => `${k} = ${v}`).join("\n"))}</textarea>
+        <textarea id="modelsIn" rows="3" spellcheck="false" placeholder="${WIN ? "sv = KBLab/kb-whisper-large" : "de = mlx-community/whisper-large-v3-turbo-german-f16"}" style="font:13px/1.5 'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace">${esc(Object.entries(settings.models || {}).map(([k, v]) => `${k} = ${v}`).join("\n"))}</textarea>
         <div class="btns"><button id="modelsSave">Lagre modeller</button><span class="muted" id="modelsMsg"></span></div>
       </div>
     </div>`;
-  $("helpModels").onclick = (e) => { e.preventDefault(); renderHelp("languages"); };
+  $("helpModels").onclick = (e) => { e.preventDefault(); openHelp("languages"); };
   $("modelsSave").onclick = async () => {
     const models = {}, bad = [];
     for (const raw of $("modelsIn").value.split(/\r?\n/)) {
@@ -1225,16 +1244,10 @@ function renderSettings() {
 }
 
 /* ---------- hjelp ---------- */
-function renderHelp(section) {
-  clearInterval(poll);
-  stopPlayer();
-  cur = null; tr = null; renderLib();
-  $("title").textContent = "Hjelp";
-  ["search", "copyBtn", "finderBtn", "outBtn", "delBtn"].forEach((id) => ($(id).hidden = true));
-  $("clipbar").hidden = true;
+function helpHtml() {
   const fm = WIN ? "Utforsker" : "Finder";
   const a = (href, txt) => `<a href="${href}" target="_blank" rel="noopener">${txt}</a>`;
-  $("body").innerHTML = `
+  return `
   <div class="help">
     <nav>
       <button data-h="start">Kom i gang</button><button data-h="clips">Lage klipp</button><button data-h="keys">Hurtigtaster</button>
@@ -1311,9 +1324,25 @@ function renderHelp(section) {
     </ul>
     <p class="muted">Lyd, video og tekst behandles bare på maskinen din og sendes aldri noe sted. Nettet brukes bare til å laste ned programvare og språkmodeller. Bruksstatistikk i bibliotekene er slått av. ${a("https://github.com/zseniclausenventures/snippmaster", "Snippmaster på GitHub")} · MIT-lisens</p>
   </div>`;
-  $("body").querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => $("h-" + b.dataset.h).scrollIntoView({ behavior: "smooth", block: "start" })));
-  if (section) setTimeout(() => $("h-" + section)?.scrollIntoView({ block: "start" }), 0);
-  $("body").scrollTop = 0;
+}
+function openHelp(section) {
+  $("helpPanel").hidden = false;
+  document.querySelector(".shell").classList.add("help-open");
+  const hb = $("helpBody");
+  hb.innerHTML = helpHtml();
+  const go = (id) => {
+    const el = $("h-" + id), nav = hb.querySelector("nav");
+    if (el) hb.scrollTop = Math.max(0, el.offsetTop - (nav ? nav.offsetHeight : 0) - 8);
+  };
+  hb.querySelectorAll("[data-h]").forEach((b) => (b.onclick = () => go(b.dataset.h)));
+  if (section) setTimeout(() => go(section), 0);
+  else hb.scrollTop = 0;
+  if (typeof drawTimeline === "function") setTimeout(() => { try { drawTimeline(); } catch {} }, 50);
+}
+function closeHelp() {
+  $("helpPanel").hidden = true;
+  document.querySelector(".shell").classList.remove("help-open");
+  if (typeof drawTimeline === "function") setTimeout(() => { try { drawTimeline(); } catch {} }, 50);
 }
 
 /* ---------- innebygd filutforsker ---------- */
@@ -1433,6 +1462,7 @@ async function listWorkVideos(choose) {
 }
 
 function renderNew(msg) {
+  onSettings = false; $("backBtn").hidden = true;
   stopPlayer();
   cur = null; tr = null; renderLib();
   $("title").textContent = "Ny video";
@@ -1642,6 +1672,7 @@ function alertBox(msg) {
 }
 
 async function openJob(id) {
+  onSettings = false; $("backBtn").hidden = true;
   clearInterval(poll);
   stopPlayer();
   cur = id; tr = null; sel = { a: null, b: null };
@@ -2105,7 +2136,8 @@ $("checkBtn").onclick = () => install(true);
 $("skipBtn").onclick = () => { skipDiar = true; enterApp(); };
 $("newBtn").onclick = () => { clearInterval(poll); renderNew(); };
 $("settingsBtn").onclick = renderSettings;
-$("helpBtn").onclick = () => renderHelp();
+$("helpBtn").onclick = () => ($("helpPanel").hidden ? openHelp() : closeHelp());
+$("helpClose").onclick = closeHelp;
 document.addEventListener("click", (e) => {
   const o = e.target.closest("[data-open]");
   if (o) { D.fs.mkdir(o.dataset.open, { recursive: true }).catch(() => {}).then(() => D.shell.openPath(o.dataset.open).catch(() => D.shell.showItemInFolder(o.dataset.open).catch(() => {}))); return; }
